@@ -1,3 +1,20 @@
 spring:
   application:
     name: tada
+
+  config:
+    import: optional:file:.env.local[.properties]
+
+  datasource:
+    url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+    username: postgres.ylwozrffjxrfqebjwbfo
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
