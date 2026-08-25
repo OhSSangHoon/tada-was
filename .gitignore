@@ -37,3 +37,5 @@ out/
 .vscode/
 
 .env.local
+
+/tada_directory_structure.md
