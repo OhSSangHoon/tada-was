@@ -93,7 +93,7 @@ public class SecurityConfig {
 
 		configuration.setAllowedOrigins(List.of(
 				"http://localhost:3000",  // 로컬 프론트 개발 주소
-				"https://tada-frontend.vercel.app" // 배포 프론트 개발 주소
+				"https://tada-frontend-seven.vercel.app" // 배포 프론트 개발 주소
 		));
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
