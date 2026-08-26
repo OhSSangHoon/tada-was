@@ -92,8 +92,8 @@ public class SecurityConfig {
 		CorsConfiguration configuration = new CorsConfiguration();
 
 		configuration.setAllowedOrigins(List.of(
-				"http://localhost:3000"   // 로컬 프론트 개발 주소
-				// TODO: "https://tada.vercel.app" 같은 실제 배포 주소 추가
+				"http://localhost:3000",  // 로컬 프론트 개발 주소
+				"https://tada-frontend.vercel.app" // 배포 프론트 개발 주소
 		));
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
