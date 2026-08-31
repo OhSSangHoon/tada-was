@@ -19,5 +19,26 @@ spring:
       hibernate:
         format_sql: true
 
+  # 소셜 로그인 설정
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - email
+              - profile
+
 server:
   port: ${PORT:8080}
+
+jwt:
+  # JWT 서명에 사용할 비밀키
+  # 실제 값은 .env.local의 JWT_SECRET에서 가져온다.
+  secret: ${JWT_SECRET}
+
+  # JWT 유효시간
+  # 3600000 = 1시간
+  expiration: 3600000

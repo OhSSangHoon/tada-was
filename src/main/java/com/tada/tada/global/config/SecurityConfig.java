@@ -1,5 +1,6 @@
 package com.tada.tada.global.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,7 +12,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import com.tada.tada.global.security.JwtAuthFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import java.util.List;
 
 /**
@@ -30,8 +32,11 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
-
+	
+	private final JwtAuthFilter jwtAuthFilter;
+	
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http
@@ -70,9 +75,15 @@ public class SecurityConfig {
 
 		// TODO(진경/B): 여기에 JwtAuthFilter 등록 필요
 		// 본인이 만든 JwtAuthFilter를 아래처럼 등록하면 됨:
-		//
 		//   http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-		//
+		
+		// JWT 필터를 Spring Security의 기본 인증 필터보다 먼저 실행
+		// 요청에 들어온 Access Token을 확인해서 로그인 여부를 판단한다.
+		http.addFilterBefore(
+				jwtAuthFilter,
+				UsernamePasswordAuthenticationFilter.class
+		);
+		
 		// 이렇게 하려면 이 클래스에 생성자 주입 추가 필요:
 		//   @RequiredArgsConstructor 어노테이션 추가 +
 		//   private final JwtAuthFilter jwtAuthFilter; 필드 추가

@@ -39,3 +39,5 @@ out/
 .env.local
 
 /tada_directory_structure.md
+
+/tada_git_컨벤션.md
