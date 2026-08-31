@@ -26,6 +26,10 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Users {
 	
+	// 일반 로그인에서 사용하는 provider 값을 상수로 관리
+	// 여러 곳에서 "local"을 직접 작성하지 않고 이 상수를 사용한다.
+	public static final String PROVIDER_LOCAL = "local";
+	
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -40,7 +44,7 @@ public class Users {
 	private String nickname;
 	
 	@Column(name = "provider", nullable = false)
-	private String provider = "local";
+	private String provider = Users.PROVIDER_LOCAL;
 	
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
@@ -50,7 +54,7 @@ public class Users {
 		this.loginId = loginId;
 		this.password = password;
 		this.nickname = nickname;
-		this.provider = "local";
+		this.provider = Users.PROVIDER_LOCAL;
 		this.createdAt = LocalDateTime.now();
 	}
 	
