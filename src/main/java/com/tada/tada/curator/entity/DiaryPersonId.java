@@ -1,4 +1,17 @@
 package com.tada.tada.curator.entity;
 
-public class DiaryPersonId {
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode
+public class DiaryPersonId implements Serializable {
+	
+	private UUID diaryId;
+	private UUID personId;
 }
