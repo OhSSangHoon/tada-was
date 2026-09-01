@@ -29,14 +29,15 @@ public class Sticker {
     private String keyword;
 
     // 추출형 / 압축형
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String type;
+    private StickerType type;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public Sticker(UUID diaryId, String imageUrl, String keyword, String type) {
+    public Sticker(UUID diaryId, String imageUrl, String keyword, StickerType type) {
         this.diaryId = diaryId;
         this.imageUrl = imageUrl;
         this.keyword = keyword;

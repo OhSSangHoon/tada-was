@@ -3,6 +3,7 @@ package com.tada.tada.auth.service;
 import com.tada.tada.auth.dto.AuthResponse;
 import com.tada.tada.auth.dto.LoginForm;
 import com.tada.tada.auth.dto.SignUpForm;
+import com.tada.tada.auth.entity.Provider;
 import com.tada.tada.auth.entity.Users;
 import com.tada.tada.auth.repository.UsersRepository;
 import com.tada.tada.global.exception.CustomException;
@@ -30,7 +31,7 @@ public class UsersService {
 		
 		// 아이디 중복 확인
 		if (usersRepository
-				.findByLoginIdAndProvider(form.getLoginId(), Users.PROVIDER_LOCAL)
+				.findByLoginIdAndProvider(form.getLoginId(), Provider.LOCAL)
 				.isPresent()) {
 			throw new CustomException("이미 사용 중인 아이디입니다.", 400);
 		}
@@ -55,7 +56,7 @@ public class UsersService {
 		
 		// 회원 조회
 		Users users = usersRepository
-				.findByLoginIdAndProvider(form.getLoginId(), Users.PROVIDER_LOCAL)
+				.findByLoginIdAndProvider(form.getLoginId(), Provider.LOCAL)
 				.orElseThrow(() ->
 						new CustomException(
 								"아이디 또는 비밀번호가 일치하지 않습니다.", 401));
