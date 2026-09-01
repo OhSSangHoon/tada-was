@@ -2,14 +2,18 @@ spring:
   application:
     name: tada
 
+  # .env.local 환경변수 사용
   config:
     import: optional:file:.env.local[.properties]
 
+  # PostgreSQL DB 설정
   datasource:
     url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
     username: postgres.ylwozrffjxrfqebjwbfo
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+
+    # DB 커넥션 풀 설정
     hikari:
       maximum-pool-size: 3
       minimum-idle: 1
@@ -17,8 +21,10 @@ spring:
       max-lifetime: 300000
       connection-timeout: 10000
 
+  # JPA 설정
   jpa:
     hibernate:
+      # DB 테이블 구조와 엔티티가 맞는지 검증
       ddl-auto: validate
     show-sql: true
     properties:
@@ -29,6 +35,8 @@ spring:
   security:
     oauth2:
       client:
+
+        # Google 로그인 정보
         registration:
           google:
             client-id: ${GOOGLE_CLIENT_ID}
@@ -36,15 +44,32 @@ spring:
             scope:
               - email
               - profile
+        # Kakao 로그인 정보
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: ${KAKAO_CLIENT_SECRET}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            provider: kakao
+            scope:
+              - name
+              - account_email
+
+        # Kakao OAuth 서버 정보
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
 
 server:
   port: ${PORT:8080}
 
 jwt:
-  # JWT 서명에 사용할 비밀키
-  # 실제 값은 .env.local의 JWT_SECRET에서 가져온다.
+  # JWT 비밀키
   secret: ${JWT_SECRET}
 
-  # JWT 유효시간
-  # 3600000 = 1시간
-  expiration: 3600000
+  # Access Token 유효시간: 30분
+  expiration: 1800000
