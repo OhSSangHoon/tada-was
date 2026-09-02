@@ -57,4 +57,17 @@ public class MentionCandidate {
 		
 		return candidate;
 	}
+	public void confirmPerson(UUID personId) {
+		if (personId == null) {
+			throw new IllegalArgumentException("personId must not be null");
+		}
+		
+		this.status = "CONFIRMED";
+		this.matchedPersonId = personId;
+	}
+	
+	public void requireConfirmation() {
+		this.status = "NEEDS_CONFIRMATION";
+		this.matchedPersonId = null;
+	}
 }
