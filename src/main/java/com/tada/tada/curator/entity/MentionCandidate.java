@@ -1,9 +1,6 @@
 package com.tada.tada.curator.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,8 +28,9 @@ public class MentionCandidate {
 	@Column(name = "entity_type", nullable = false)
 	private String entityType;
 	
+	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false)
-	private String status;
+	private MentionCandidateStatus status;
 	
 	@Column(name = "matched_person_id")
 	private UUID matchedPersonId;
@@ -42,7 +40,7 @@ public class MentionCandidate {
 			String rawText,
 			String normalizedText,
 			String entityType,
-			String status,
+			MentionCandidateStatus status,
 			UUID matchedPersonId
 	) {
 		MentionCandidate candidate = new MentionCandidate();
@@ -62,12 +60,12 @@ public class MentionCandidate {
 			throw new IllegalArgumentException("personId must not be null");
 		}
 		
-		this.status = "CONFIRMED";
+		this.status = MentionCandidateStatus.CONFIRMED;
 		this.matchedPersonId = personId;
 	}
-	
+
 	public void requireConfirmation() {
-		this.status = "NEEDS_CONFIRMATION";
+		this.status = MentionCandidateStatus.NEEDS_CONFIRMATION;
 		this.matchedPersonId = null;
 	}
 }
