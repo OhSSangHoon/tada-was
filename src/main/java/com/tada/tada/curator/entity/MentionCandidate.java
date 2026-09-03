@@ -12,29 +12,29 @@ import java.util.UUID;
 @Table(name = "mention_candidate")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MentionCandidate {
-	
+
 	@Id
 	private UUID id;
-	
+
 	@Column(name = "diary_id", nullable = false)
 	private UUID diaryId;
-	
+
 	@Column(name = "raw_text", nullable = false)
 	private String rawText;
-	
+
 	@Column(name = "normalized_text", nullable = false)
 	private String normalizedText;
-	
+
 	@Column(name = "entity_type", nullable = false)
 	private String entityType;
-	
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false)
 	private MentionCandidateStatus status;
-	
+
 	@Column(name = "matched_person_id")
 	private UUID matchedPersonId;
-	
+
 	public static MentionCandidate create(
 			UUID diaryId,
 			String rawText,
@@ -44,7 +44,7 @@ public class MentionCandidate {
 			UUID matchedPersonId
 	) {
 		MentionCandidate candidate = new MentionCandidate();
-		
+
 		candidate.id = UUID.randomUUID();
 		candidate.diaryId = diaryId;
 		candidate.rawText = rawText;
@@ -52,14 +52,15 @@ public class MentionCandidate {
 		candidate.entityType = entityType;
 		candidate.status = status;
 		candidate.matchedPersonId = matchedPersonId;
-		
+
 		return candidate;
 	}
+
 	public void confirmPerson(UUID personId) {
 		if (personId == null) {
 			throw new IllegalArgumentException("personId must not be null");
 		}
-		
+
 		this.status = MentionCandidateStatus.CONFIRMED;
 		this.matchedPersonId = personId;
 	}

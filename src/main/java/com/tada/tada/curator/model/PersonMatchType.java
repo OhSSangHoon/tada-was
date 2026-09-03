@@ -1,4 +1,4 @@
-package com.tada.tada.curator.service;
+package com.tada.tada.curator.model;
 
 public enum PersonMatchType {
 	EXACT,
