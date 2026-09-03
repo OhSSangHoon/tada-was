@@ -32,20 +32,34 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		
 		// Google 사용자 정보 처리
 		if ("google".equals(provider)) {
-			loginId = oAuth2User.getAttribute("email");
+			loginId = oAuth2User.getName();
 			nickname = oAuth2User.getAttribute("name");
 			
 			// Kakao 사용자 정보 처리
 		} else if ("kakao".equals(provider)) {
+			
 			// Kakao 계정 정보를 가져온다.
 			Map<String, Object> kakaoAccount =
 					oAuth2User.getAttribute("kakao_account");
 			
-			// Kakao 이메일 → 우리 서비스 loginId
-			loginId = (String) kakaoAccount.get("email");
+			// Kakao의 고유 ID를 loginId로 사용한다.
+			loginId = oAuth2User.getName();
 			
-			// Kakao 이름 → 우리 서비스 nickname
+			// Kakao에서 받은 이름을 nickname으로 사용한다.
 			nickname = (String) kakaoAccount.get("name");
+			
+			// Naver 사용자 정보 처리
+		} else if ("naver".equals(provider)) {
+			
+			// Naver 사용자 정보는 response 안에 들어있다.
+			Map<String, Object> naverResponse =
+					oAuth2User.getAttribute("response");
+			
+			// Naver의 고유 ID를 loginId로 사용한다.
+			loginId = (String) naverResponse.get("id");
+			
+			// Naver에서 받은 이름을 nickname으로 사용한다.
+			nickname = (String) naverResponse.get("name");
 			
 		} else {
 			throw new IllegalArgumentException("지원하지 않는 소셜 로그인입니다.");
