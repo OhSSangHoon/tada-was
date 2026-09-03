@@ -2,6 +2,7 @@ package com.tada.tada.diary.controller;
 
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
+import com.tada.tada.diary.dto.DiaryUpdateForm;
 import com.tada.tada.diary.service.DiaryService;
 import com.tada.tada.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -37,5 +38,28 @@ public class DiaryController {
 		
 		DiaryResponse response = diaryService.getDiary(userId, id);
 		return ApiResponse.success(response);
+	}
+	
+	@PutMapping("/{id}")
+	public ApiResponse<DiaryResponse> updateDiary(
+			@PathVariable UUID id,
+			@RequestBody @Valid DiaryUpdateForm form,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		DiaryResponse response = diaryService.updateDiary(userId, id, form);
+		return ApiResponse.success(response);
+	}
+	
+	@DeleteMapping("/{id}")
+	public ApiResponse<Void> trashDiary(
+			@PathVariable UUID id,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		diaryService.trashDiary(userId, id);
+		return ApiResponse.success(null);
 	}
 }
