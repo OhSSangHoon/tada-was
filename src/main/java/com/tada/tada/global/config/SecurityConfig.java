@@ -1,5 +1,7 @@
 package com.tada.tada.global.config;
 
+import com.tada.tada.auth.service.CustomOAuth2UserService;
+import com.tada.tada.global.security.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +39,12 @@ public class SecurityConfig {
 	
 	private final JwtAuthFilter jwtAuthFilter;
 	
+	// 소셜 로그인으로 전달받은 사용자 정보를 처리한다.
+	private final CustomOAuth2UserService customOAuth2UserService;
+	
+	// 소셜 로그인 성공 후 우리 서비스의 JWT를 발급한다.
+	private final OAuth2SuccessHandler oAuth2SuccessHandler;
+	
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http
@@ -53,7 +61,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						// 헬스체크용 루트 경로 — 서버 떠있는지 확인용
 						.requestMatchers("/").permitAll()
-
+						
 						// Swagger 문서는 인증 없이 누구나 볼 수 있어야 함
 						.requestMatchers(
 								"/swagger-ui/**",
@@ -65,12 +73,31 @@ public class SecurityConfig {
 
 						// n8n이 콜백 보내는 내부 전용 경로 — X-Internal-Secret 헤더로 별도 인증 예정
 						.requestMatchers("/api/internal/**").permitAll()
-
+						
+						// OAuth2 소셜 로그인 시작 및 콜백 경로는 인증 없이 접근 가능
+						.requestMatchers(
+								"/oauth2/**",
+								"/login/**"
+						).permitAll()
+						
 						// 게스트도 볼 수 있는 화면이 있다면 여기 추가
 						// 예: .requestMatchers("/api/guest/**").permitAll()
-
+	
 						// 그 외 모든 API는 로그인(유효한 Access Token) 필요
 						.anyRequest().authenticated()
+				)
+				
+				// OAuth2 소셜 로그인 설정
+				.oauth2Login(oauth2 -> oauth2
+								
+								// Google/Kakao에서 받은 사용자 정보를
+								// CustomOAuth2UserService에서 처리한다.
+								.userInfoEndpoint(userInfo -> userInfo
+										.userService(customOAuth2UserService)
+								)
+								
+								// 소셜 로그인 성공 후 우리 서비스의 JWT를 발급한다.
+								.successHandler(oAuth2SuccessHandler)
 				);
 
 		// TODO(진경/B): 여기에 JwtAuthFilter 등록 필요

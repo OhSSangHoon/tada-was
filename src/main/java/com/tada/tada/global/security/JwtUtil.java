@@ -1,6 +1,5 @@
 package com.tada.tada.global.security;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +19,10 @@ public class JwtUtil {
 	@Value("${jwt.expiration}")
 	private long expiration;
 	
-	// JWT 생성
+	@Value("${jwt.refresh-expiration}")
+	private long refreshExpiration;
+	
+	// Access Token 생성
 	public String createToken(UUID userId) {
 		Date now = new Date();
 		
@@ -28,6 +30,18 @@ public class JwtUtil {
 				.subject(userId.toString())
 				.issuedAt(now)
 				.expiration(new Date(now.getTime() + expiration))
+				.signWith(getKey())
+				.compact();
+	}
+	
+	// Refresh Token 생성
+	public String createRefreshToken(UUID userId) {
+		Date now = new Date();
+		
+		return Jwts.builder()
+				.subject(userId.toString())
+				.issuedAt(now)
+				.expiration(new Date(now.getTime() + refreshExpiration))
 				.signWith(getKey())
 				.compact();
 	}
