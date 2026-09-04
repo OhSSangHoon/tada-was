@@ -25,11 +25,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 public class Users {
-	
-	// 일반 로그인에서 사용하는 provider 값을 상수로 관리
-	// 여러 곳에서 "local"을 직접 작성하지 않고 이 상수를 사용한다.
-	public static final String PROVIDER_LOCAL = "local";
-	
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -43,8 +39,9 @@ public class Users {
 	@Column(name = "nickname", nullable = false)
 	private String nickname;
 	
+	@Enumerated(EnumType.STRING)
 	@Column(name = "provider", nullable = false)
-	private String provider = Users.PROVIDER_LOCAL;
+	private Provider provider = Provider.LOCAL;
 	
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
@@ -54,15 +51,15 @@ public class Users {
 		this.loginId = loginId;
 		this.password = password;
 		this.nickname = nickname;
-		this.provider = Users.PROVIDER_LOCAL;
+		this.provider = Provider.LOCAL;
 		this.createdAt = LocalDateTime.now();
 	}
-	
+
 	// 소셜 회원가입
 	public static Users createSocialUser(
 			String loginId,
 			String nickname,
-			String provider
+			Provider provider
 	) {
 		Users users = new Users();
 		users.loginId = loginId;

@@ -3,6 +3,7 @@ package com.tada.tada.auth.service;
 import com.tada.tada.auth.dto.AuthResponse;
 import com.tada.tada.auth.dto.LoginForm;
 import com.tada.tada.auth.dto.SignUpForm;
+import com.tada.tada.auth.entity.Provider;
 import com.tada.tada.auth.entity.RefreshToken;
 import com.tada.tada.auth.entity.Users;
 import com.tada.tada.auth.repository.RefreshTokenRepository;
@@ -38,11 +39,11 @@ public class UsersService {
 			throw new CustomException("비밀번호가 일치하지 않습니다.", 400);
 		}
 		
-		// 아이디 중복 확인
+		// LOCAL 계정 기준 아이디 중복 확인
 		if (usersRepository
 				.findByLoginIdAndProvider(
 						form.getLoginId(),
-						Users.PROVIDER_LOCAL
+						Provider.LOCAL
 				)
 				.isPresent()) {
 			throw new CustomException("이미 사용 중인 아이디입니다.", 400);
@@ -64,13 +65,14 @@ public class UsersService {
 	}
 	
 	// 로그인
+	@Transactional
 	public AuthResponse login(LoginForm form) {
 		
-		// 회원 조회
+		// LOCAL 계정 조회
 		Users users = usersRepository
 				.findByLoginIdAndProvider(
 						form.getLoginId(),
-						Users.PROVIDER_LOCAL
+						Provider.LOCAL
 				)
 				.orElseThrow(() ->
 						new CustomException(
@@ -90,10 +92,12 @@ public class UsersService {
 		}
 		
 		// Access Token 발급
-		String accessToken = jwtUtil.createToken(users.getId());
+		String accessToken =
+				jwtUtil.createToken(users.getId());
 		
 		// Refresh Token 발급
-		String refreshToken = jwtUtil.createRefreshToken(users.getId());
+		String refreshToken =
+				jwtUtil.createRefreshToken(users.getId());
 		
 		// 기존 Refresh Token 삭제
 		refreshTokenRepository.deleteByUserId(users.getId());
@@ -104,13 +108,14 @@ public class UsersService {
 						refreshExpiration * 1_000_000
 				);
 		
-		// Refresh Token 저장
+		// Refresh Token 생성
 		RefreshToken token = new RefreshToken(
 				users.getId(),
 				refreshToken,
 				expiresAt
 		);
 		
+		// Refresh Token DB 저장
 		refreshTokenRepository.save(token);
 		
 		return new AuthResponse(
@@ -120,39 +125,47 @@ public class UsersService {
 	}
 	
 	// Refresh Token으로 Access Token 재발급
+	@Transactional
 	public AuthResponse reissue(String refreshToken) {
 		
 		// DB에 저장된 Refresh Token인지 확인
-		RefreshToken savedToken = refreshTokenRepository
-				.findByToken(refreshToken)
-				.orElseThrow(() ->
-						new CustomException(
-								"유효하지 않은 Refresh Token입니다.",
-								401
-						));
+		RefreshToken savedToken =
+				refreshTokenRepository
+						.findByToken(refreshToken)
+						.orElseThrow(() ->
+								new CustomException(
+										"유효하지 않은 Refresh Token입니다.",
+										401
+								));
 		
 		// JWT 자체가 유효한지 확인
 		if (!jwtUtil.validateToken(refreshToken)) {
 			refreshTokenRepository.deleteByToken(refreshToken);
+			
 			throw new CustomException(
 					"만료되었거나 유효하지 않은 Refresh Token입니다.",
 					401
 			);
 		}
 		
-		// DB의 만료 시간 확인
-		if (savedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+		// DB에 저장된 만료 시간 확인
+		if (savedToken
+				.getExpiresAt()
+				.isBefore(LocalDateTime.now())) {
+			
 			refreshTokenRepository.deleteByToken(refreshToken);
+			
 			throw new CustomException(
 					"Refresh Token이 만료되었습니다.",
 					401
 			);
 		}
 		
-		// Refresh Token에서 회원 ID 확인
-		UUID userId = jwtUtil.getUserId(refreshToken);
+		// Refresh Token에서 회원 ID 추출
+		UUID userId =
+				jwtUtil.getUserId(refreshToken);
 		
-		// DB에 저장된 회원 ID와 일치하는지 확인
+		// DB의 회원 ID와 일치하는지 확인
 		if (!savedToken.getUserId().equals(userId)) {
 			throw new CustomException(
 					"유효하지 않은 Refresh Token입니다.",
@@ -161,7 +174,8 @@ public class UsersService {
 		}
 		
 		// 새로운 Access Token 발급
-		String accessToken = jwtUtil.createToken(userId);
+		String accessToken =
+				jwtUtil.createToken(userId);
 		
 		// 기존 Refresh Token은 그대로 사용
 		return new AuthResponse(
@@ -173,6 +187,7 @@ public class UsersService {
 	// 로그아웃
 	@Transactional
 	public void logout(UUID userId) {
+		
 		// 해당 회원의 Refresh Token 삭제
 		refreshTokenRepository.deleteByUserId(userId);
 	}

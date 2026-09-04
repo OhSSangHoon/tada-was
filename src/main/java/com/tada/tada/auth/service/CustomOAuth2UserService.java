@@ -1,5 +1,6 @@
 package com.tada.tada.auth.service;
 
+import com.tada.tada.auth.entity.Provider;
 import com.tada.tada.auth.entity.Users;
 import com.tada.tada.auth.repository.UsersRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,19 +63,28 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			nickname = (String) naverResponse.get("name");
 			
 		} else {
-			throw new IllegalArgumentException("지원하지 않는 소셜 로그인입니다.");
+			throw new IllegalArgumentException(
+					"지원하지 않는 소셜 로그인입니다."
+			);
 		}
+		
+		// String으로 받은 provider를 Provider enum으로 변환한다.
+		Provider providerEnum =
+				Provider.valueOf(provider.toUpperCase());
 		
 		// 기존 소셜 회원인지 확인
 		Users users = usersRepository
-				.findByLoginIdAndProvider(loginId, provider)
+				.findByLoginIdAndProvider(
+						loginId,
+						providerEnum
+				)
 				.orElseGet(() -> {
 					
 					// 기존 회원이 없으면 새로 생성한다.
 					Users newUsers = Users.createSocialUser(
 							loginId,
 							nickname,
-							provider
+							providerEnum
 					);
 					
 					return usersRepository.save(newUsers);
