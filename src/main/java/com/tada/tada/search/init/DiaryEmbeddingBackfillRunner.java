@@ -5,7 +5,7 @@ package com.tada.tada.search.init;
 	- Spring Boot가 애플리케이션 완전히 뜬 직후 run()을 자동으로 한번 호출해주는 인터페이스
  */
 
-import com.tada.tada.domain.diary.entity.Diary;
+import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.search.repository.SearchRepository;
 import com.tada.tada.search.service.VoyageAIEmbeddingService;
 import lombok.RequiredArgsConstructor;

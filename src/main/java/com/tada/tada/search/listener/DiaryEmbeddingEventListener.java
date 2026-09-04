@@ -1,6 +1,6 @@
 package com.tada.tada.search.listener;
 
-import com.tada.tada.domain.diary.entity.Diary;
+import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.global.event.DiaryCreatedEvent;
 import com.tada.tada.global.event.DiaryUpdatedEvent;
 import com.tada.tada.search.repository.SearchRepository;
@@ -21,7 +21,6 @@ import java.util.Arrays;
 	- DiaryCreatedEvent(diaryId, userId)에는 content가 없어서, diartId로 DB에서 다시 조회해아함
 	- DiaryUpdatedEvent(diaryId, userId, oldContent, newContent)에는 newContent가 바로 들어 있어서 DB 재조회 없이 바로 재임베딩 가능
 	- Diary 엔티티를 fetch해서 save()하는 대신, SearchRepository.updateEmbedding()으로 네이티브 UPDATE 쿼리를 사용함
-	Diary.embedding 필드가 아직 float[]로 매핑되어 있어, entity를 통해 save()하면 pgvector 타입과 안 맞을 수 있어 이 방식으로 우회
 	- CustomException은 Controller 요청에 대한 응답용이라 여기서는 사용하지 않음
  */
 @Component

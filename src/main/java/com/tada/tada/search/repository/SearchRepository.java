@@ -1,6 +1,7 @@
 package com.tada.tada.search.repository;
 
-import com.tada.tada.domain.diary.entity.Diary;
+import com.tada.tada.diary.entity.DiaryStatus;
+import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.search.dto.SearchResultProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -93,7 +94,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 		@param status 일기 상태 ("ACTIVE" or "TRASHED")
 		@return 해당하는 일기 리스트
 	 */
-	List<Diary> findByUserIdAndStatus(UUID userId, String status);
+	List<Diary> findByUserIdAndStatus(UUID userId, DiaryStatus status);
 	
 	/*
 		사용자 ID 기준으로 정상 일기 개수 조회
@@ -103,7 +104,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 		@param status 일기 상태 ("ACTIVE" OR "TRASHED")
 		@return 해당하는 일기 개수
 	 */
-	long countByUserIdAndStatus(UUID userId, String status);
+	long countByUserIdAndStatus(UUID userId, DiaryStatus status);
 	
 	/*
 		임베딩 벡터를 특정 일기(diaryId)에 저장/갱신
