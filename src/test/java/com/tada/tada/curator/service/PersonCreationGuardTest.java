@@ -2,6 +2,8 @@ package com.tada.tada.curator.service;
 
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
+import com.tada.tada.curator.entity.PersonDistinctPair;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 class PersonCreationGuardTest {
@@ -326,9 +330,56 @@ class PersonCreationGuardTest {
 				UUID.randomUUID(),
 				rawText,
 				normalizedText,
-				"PERSON",
+				MentionEntityType.PERSON,
 				MentionCandidateStatus.CONFIRMED,
 				matchedPersonId
+		);
+	}
+
+
+
+
+	@Test
+	void distinctPair는_canonical_순서와_self_pair_금지를_강제한다() {
+		/*
+		 * 실제 DB 에는 쌍 unique 도 self-pair CHECK 도 없다. (명세 7.8)
+		 * PersonDistinctPair 는 현재 매칭·CreationGuard 에서 사용하지 않지만,
+		 * 엔티티 불변식은 병합·교정 기능에서 쓰이기 전에 확보해 둔다.
+		 */
+		UUID first = UUID.randomUUID();
+		UUID second = UUID.randomUUID();
+
+		PersonDistinctPair forward =
+				PersonDistinctPair.create(first, second);
+
+		PersonDistinctPair reverse =
+				PersonDistinctPair.create(second, first);
+
+		assertTrue(
+				forward.getPersonIdA().toString()
+						.compareTo(
+								forward.getPersonIdB().toString()
+						) < 0
+		);
+
+		assertEquals(
+				forward.getPersonIdA(),
+				reverse.getPersonIdA()
+		);
+
+		assertEquals(
+				forward.getPersonIdB(),
+				reverse.getPersonIdB()
+		);
+
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> PersonDistinctPair.create(first, first)
+		);
+
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> PersonDistinctPair.create(first, null)
 		);
 	}
 }

@@ -4,6 +4,7 @@ import com.tada.tada.curator.entity.DiaryPerson;
 import com.tada.tada.curator.entity.MemoryPerson;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.repository.DiaryPersonRepository;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
 import lombok.RequiredArgsConstructor;
@@ -179,9 +180,8 @@ public class DiaryPersonService {
 			);
 		}
 
-		if (!"PERSON".equals(
-				candidate.getEntityType()
-		)) {
+		if (candidate.getEntityType()
+				!= MentionEntityType.PERSON) {
 			throw new IllegalStateException(
 					"candidate must be PERSON"
 			);

@@ -3,6 +3,7 @@ package com.tada.tada.curator.service;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidatePersonRef;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.repository.MentionCandidatePersonRefRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,7 @@ class MentionCandidatePersonRefServiceTest {
 						diaryId,
 						"민수",
 						"민수",
-						"PERSON",
+						MentionEntityType.PERSON,
 						MentionCandidateStatus.CONFIRMED,
 						memoryPersonId
 				);
@@ -54,7 +55,7 @@ class MentionCandidatePersonRefServiceTest {
 						diaryId,
 						"카페",
 						"카페",
-						"PLACE",
+						MentionEntityType.PLACE,
 						MentionCandidateStatus.CONFIRMED,
 						null
 				);

@@ -3,6 +3,7 @@ package com.tada.tada.curator.service;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidatePersonRef;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.repository.MentionCandidatePersonRefRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class MentionCandidatePersonRefService {
-
-	private static final Set<String> SOURCE_ENTITY_TYPES =
-			Set.of("PLACE", "ACTIVITY");
 
 	private final MentionCandidatePersonRefRepository relationRepository;
 
@@ -200,9 +198,8 @@ public class MentionCandidatePersonRefService {
 			);
 		}
 
-		if (!SOURCE_ENTITY_TYPES.contains(
-				sourceCandidate.getEntityType()
-		)) {
+		if (sourceCandidate.getEntityType() == null
+				|| !sourceCandidate.getEntityType().isSource()) {
 			throw new IllegalStateException(
 					"sourceCandidate must be PLACE or ACTIVITY"
 			);
@@ -283,9 +280,8 @@ public class MentionCandidatePersonRefService {
 			);
 		}
 
-		if (!"PERSON".equals(
-				personCandidate.getEntityType()
-		)) {
+		if (personCandidate.getEntityType()
+				!= MentionEntityType.PERSON) {
 			throw new IllegalStateException(
 					"personCandidate must be PERSON"
 			);

@@ -25,8 +25,9 @@ public class MentionCandidate {
 	@Column(name = "normalized_text", nullable = false)
 	private String normalizedText;
 
+	@Enumerated(EnumType.STRING)
 	@Column(name = "entity_type", nullable = false)
-	private String entityType;
+	private MentionEntityType entityType;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false)
@@ -39,7 +40,7 @@ public class MentionCandidate {
 			UUID diaryId,
 			String rawText,
 			String normalizedText,
-			String entityType,
+			MentionEntityType entityType,
 			MentionCandidateStatus status,
 			UUID matchedPersonId
 	) {

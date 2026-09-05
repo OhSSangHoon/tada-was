@@ -25,7 +25,7 @@ public interface MentionCandidateRepository
         FROM MentionCandidate candidate, Diary diary
         WHERE candidate.diaryId = diary.id
           AND diary.userId = :userId
-          AND candidate.entityType = 'PERSON'
+          AND candidate.entityType = com.tada.tada.curator.entity.MentionEntityType.PERSON
           AND candidate.status = :status
           AND candidate.matchedPersonId IS NOT NULL
           AND (

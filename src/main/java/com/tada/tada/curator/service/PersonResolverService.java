@@ -45,12 +45,19 @@ public class PersonResolverService {
 		Set<UUID> blockedIds =
 				blockedPersonIds == null
 						? Set.of()
-						: Set.copyOf(blockedPersonIds);
+						: Set.copyOf(
+						blockedPersonIds
+				);
 
 		PersonNormalization normalization =
-				personNormalizer.normalize(rawText);
+				personNormalizer.normalize(
+						rawText
+				);
 
-		if (normalization.normalizedText().isBlank()) {
+		if (normalization
+				.normalizedText()
+				.isBlank()) {
+
 			throw new IllegalArgumentException(
 					"person name must not be blank"
 			);
@@ -64,21 +71,26 @@ public class PersonResolverService {
 				);
 
 		return switch (matchResult.matchType()) {
-			case EXACT, SIMILAR -> requireMatchedPerson(
-					matchResult,
-					blockedIds
-			);
+			case EXACT, SIMILAR ->
+					requireMatchedPerson(
+							userId,
+							matchResult,
+							blockedIds
+					);
 
-			case AMBIGUOUS, NEW -> resolveAmbiguousOrNew(
-					userId,
-					rawText,
-					normalization.normalizedText(),
-					blockedIds
-			);
+			case AMBIGUOUS, NEW ->
+					resolveAmbiguousOrNew(
+							userId,
+							rawText,
+							normalization,
+							blockedIds,
+							matchResult
+					);
 		};
 	}
 
 	private UUID requireMatchedPerson(
+			UUID userId,
 			PersonMatchResult matchResult,
 			Set<UUID> blockedPersonIds
 	) {
@@ -92,61 +104,117 @@ public class PersonResolverService {
 			);
 		}
 
-		if (blockedPersonIds.contains(personId)) {
+		if (blockedPersonIds.contains(
+				personId
+		)) {
 			throw new IllegalStateException(
 					"blocked person cannot be automatically matched"
 			);
 		}
 
-		return personId;
+		return validatePersonOwner(
+				userId,
+				personId
+		);
 	}
 
 	private UUID resolveAmbiguousOrNew(
 			UUID userId,
 			String rawText,
-			String normalizedText,
-			Set<UUID> blockedPersonIds
+			PersonNormalization normalization,
+			Set<UUID> blockedPersonIds,
+			PersonMatchResult matchResult
 	) {
 		Optional<UUID> reusablePersonId =
-				personCreationGuard.findReusablePerson(
-						userId,
-						rawText,
-						normalizedText,
-						blockedPersonIds
-				);
+				personCreationGuard
+						.findReusablePerson(
+								userId,
+								rawText,
+								normalization
+										.normalizedText(),
+								blockedPersonIds
+						);
 
-		if (reusablePersonId.isPresent()) {
-			return validateReusablePerson(
+		if (reusablePersonId.isPresent()
+				&& canReuseMatchCandidate(
+				matchResult,
+				reusablePersonId.get()
+		)) {
+
+			UUID personId =
+					reusablePersonId.get();
+
+			if (blockedPersonIds.contains(
+					personId
+			)) {
+				throw new IllegalStateException(
+						"blocked person cannot be reused"
+				);
+			}
+
+			return validatePersonOwner(
 					userId,
-					reusablePersonId.get()
+					personId
 			);
 		}
 
+		/*
+		 * 표시 이름에는 매칭용 normalizedText 가 아니라
+		 * displayNameCandidate 를 사용한다.
+		 *
+		 * "은", "이" 는 조사일 수도 실제 이름의 끝 글자일 수도 있어
+		 * 매칭 후보로만 제거하고 표시 이름에는 반영하지 않는다.
+		 *
+		 *   "김성은" -> "김성" 으로 줄이지 않는다
+		 *   "가을이" -> "가을" 로 줄이지 않는다
+		 *
+		 * 같은 사람이 나중에 다른 조사로 등장하면
+		 * PersonMatchingService 의 정규화 exact 단계가 다시 연결한다.
+		 */
 		return createPerson(
 				userId,
-				normalizedText
+				normalization.displayNameCandidate()
 		);
 	}
 
-	private UUID validateReusablePerson(
+	private boolean canReuseMatchCandidate(
+			PersonMatchResult matchResult,
+			UUID reusablePersonId
+	) {
+		return matchResult
+				.candidatePersonIds()
+				.isEmpty()
+
+				|| matchResult
+				.candidatePersonIds()
+				.contains(
+						reusablePersonId
+				);
+	}
+
+	private UUID validatePersonOwner(
 			UUID userId,
 			UUID personId
 	) {
 		MemoryPerson person =
-				memoryPersonRepository.findById(personId)
+				memoryPersonRepository
+						.findById(personId)
 						.orElseThrow(
-								() -> new IllegalStateException(
-										"reusable person does not exist"
-								)
+								() ->
+										new IllegalStateException(
+												"matched person does not exist"
+										)
 						);
 
-		if (!userId.equals(person.getUserId())) {
+		if (!userId.equals(
+				person.getUserId()
+		)) {
 			throw new IllegalStateException(
-					"reusable person belongs to another user"
+					"matched person belongs to another user"
 			);
 		}
 
-		return person.getId();
+		return personId;
 	}
 
 	private UUID createPerson(
@@ -160,7 +228,9 @@ public class PersonResolverService {
 				);
 
 		MemoryPerson savedPerson =
-				memoryPersonRepository.save(person);
+				memoryPersonRepository.save(
+						person
+				);
 
 		return savedPerson.getId();
 	}

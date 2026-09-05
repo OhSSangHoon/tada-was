@@ -1,130 +1,80 @@
 package com.tada.tada.curator.event;
 
-import com.tada.tada.curator.service.DiaryPersonService;
-import com.tada.tada.curator.service.MentionCandidatePersonRefService;
-import com.tada.tada.curator.service.MentionCandidateService;
-import com.tada.tada.curator.service.PersonAggregateService;
-import com.tada.tada.curator.validation.ExtractionResultValidator;
-import com.tada.tada.diary.entity.Diary;
-import com.tada.tada.diary.repository.DiaryRepository;
+import com.tada.tada.curator.service.MentionExtractionProcessor;
 import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.event.dto.ExtractionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.Mockito.never;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 class MentionExtractedEventListenerTest {
 
-	private DiaryRepository diaryRepository;
-	private ExtractionResultValidator extractionResultValidator;
-	private MentionCandidateService mentionCandidateService;
-	private MentionCandidatePersonRefService relationService;
-	private DiaryPersonService diaryPersonService;
-	private PersonAggregateService personAggregateService;
-
+	private MentionExtractionProcessor mentionExtractionProcessor;
 	private MentionExtractedEventListener listener;
 
 	@BeforeEach
 	void setUp() {
-		diaryRepository =
-				Mockito.mock(DiaryRepository.class);
-
-		extractionResultValidator =
-				Mockito.mock(ExtractionResultValidator.class);
-
-		mentionCandidateService =
-				Mockito.mock(MentionCandidateService.class);
-
-		relationService =
-				Mockito.mock(
-						MentionCandidatePersonRefService.class
-				);
-
-		diaryPersonService =
-				Mockito.mock(DiaryPersonService.class);
-
-		personAggregateService =
-				Mockito.mock(PersonAggregateService.class);
+		mentionExtractionProcessor =
+				Mockito.mock(MentionExtractionProcessor.class);
 
 		listener =
 				new MentionExtractedEventListener(
-						diaryRepository,
-						extractionResultValidator,
-						mentionCandidateService,
-						relationService,
-						diaryPersonService,
-						personAggregateService
+						mentionExtractionProcessor
 				);
 	}
 
-	@Test
-	void 이미_처리된_일기의_중복_이벤트는_다시_처리하지_않는다() {
-		UUID diaryId = UUID.randomUUID();
-		UUID userId = UUID.randomUUID();
-
-		Diary diary =
-				Diary.builder()
-						.userId(userId)
-						.entryDate(LocalDate.now())
-						.title("오늘")
-						.weather(null)
-						.content("민수를 만났다")
-						.build();
-
-		ExtractionResult extractionResult =
+	private MentionExtractedEvent event() {
+		return new MentionExtractedEvent(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
 				new ExtractionResult(
 						List.of(),
 						List.of(),
 						List.of()
-				);
-
-		MentionExtractedEvent event =
-				new MentionExtractedEvent(
-						diaryId,
-						userId,
-						extractionResult
-				);
-
-		when(
-				diaryRepository.findById(diaryId)
-		).thenReturn(
-				Optional.of(diary)
-		);
-
-		when(
-				mentionCandidateService.hasCandidates(
-						diaryId
 				)
-		).thenReturn(true);
+		);
+	}
+
+	@Test
+	void 이벤트를_processor에_위임한다() {
+		MentionExtractedEvent event = event();
 
 		listener.handle(event);
 
-		verify(
-				mentionCandidateService
-		).hasCandidates(diaryId);
+		verify(mentionExtractionProcessor).process(event);
+	}
 
-		verify(
-				extractionResultValidator,
-				never()
-		).validate(
-				Mockito.any(),
-				Mockito.any()
+	@Test
+	void processor_실패가_diary_트랜잭션으로_전파되지_않는다() {
+		/*
+		 * Diary 는 이미 commit 된 뒤이므로
+		 * Curator 실패를 밖으로 던지지 않고 로그만 남긴다.
+		 */
+		doThrow(new IllegalStateException("boom"))
+				.when(mentionExtractionProcessor)
+				.process(any());
+
+		assertDoesNotThrow(
+				() -> listener.handle(event())
 		);
+	}
 
-		verifyNoInteractions(
-				relationService,
-				diaryPersonService,
-				personAggregateService
+	@Test
+	void 검증_실패도_밖으로_전파되지_않는다() {
+		doThrow(new IllegalArgumentException("invalid"))
+				.when(mentionExtractionProcessor)
+				.process(any());
+
+		assertDoesNotThrow(
+				() -> listener.handle(event())
 		);
 	}
 }

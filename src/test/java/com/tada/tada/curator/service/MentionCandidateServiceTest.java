@@ -2,6 +2,7 @@ package com.tada.tada.curator.service;
 
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,7 +88,7 @@ class MentionCandidateServiceTest {
 		);
 
 		assertEquals(
-				"PERSON",
+				MentionEntityType.PERSON,
 				result.getEntityType()
 		);
 
@@ -161,11 +162,11 @@ class MentionCandidateServiceTest {
 								diaryId,
 								"광안리에서",
 								"광안리",
-								"PLACE"
+								MentionEntityType.PLACE
 						);
 
 		assertEquals(
-				"PLACE",
+				MentionEntityType.PLACE,
 				result.getEntityType()
 		);
 
@@ -189,11 +190,11 @@ class MentionCandidateServiceTest {
 								diaryId,
 								"농구를 했다",
 								"농구",
-								"ACTIVITY"
+								MentionEntityType.ACTIVITY
 						);
 
 		assertEquals(
-				"ACTIVITY",
+				MentionEntityType.ACTIVITY,
 				result.getEntityType()
 		);
 
@@ -212,19 +213,24 @@ class MentionCandidateServiceTest {
 										UUID.randomUUID(),
 										"민수",
 										"민수",
-										"PERSON"
+										MentionEntityType.PERSON
 								)
 		);
 	}
 	@Test
-	void PLACE나_ACTIVITY가_아닌_비인물_타입은_거부한다() {
+	void 비인물_타입이_null이면_거부한다() {
+		/*
+		 * entityType 을 enum 으로 바꾼 뒤로
+		 * "DOG" 같은 임의 문자열은 컴파일 단계에서 막힌다.
+		 * 런타임에 남는 잘못된 값은 null 뿐이다.
+		 */
 		assertThrows(
 				IllegalArgumentException.class,
 				() -> mentionCandidateService.createNonPersonCandidate(
 						UUID.randomUUID(),
 						"카페",
 						"카페",
-						"DOG"
+						null
 				)
 		);
 	}

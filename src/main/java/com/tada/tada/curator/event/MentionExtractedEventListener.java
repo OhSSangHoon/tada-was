@@ -1,274 +1,61 @@
 package com.tada.tada.curator.event;
 
-import com.tada.tada.curator.entity.MentionCandidate;
-import com.tada.tada.curator.service.DiaryPersonService;
-import com.tada.tada.curator.service.MentionCandidatePersonRefService;
-import com.tada.tada.curator.service.MentionCandidateService;
-import com.tada.tada.curator.service.PersonAggregateService;
-import com.tada.tada.curator.validation.ExtractionResultValidator;
-import com.tada.tada.diary.entity.Diary;
-import com.tada.tada.diary.repository.DiaryRepository;
+import com.tada.tada.curator.service.MentionExtractionProcessor;
 import com.tada.tada.global.event.MentionExtractedEvent;
-import com.tada.tada.global.event.dto.ActivityExtraction;
-import com.tada.tada.global.event.dto.ExtractionResult;
-import com.tada.tada.global.event.dto.PersonExtraction;
-import com.tada.tada.global.event.dto.PlaceExtraction;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.event.EventListener;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-
+/*
+ * Curator 후처리는 Diary 저장의 성공 여부를 좌우하지 않는다.
+ *
+ * Diary transaction 이 commit 된 뒤에 이벤트를 받고,
+ * 실제 처리는 MentionExtractionProcessor 의 REQUIRES_NEW transaction 에서 한다.
+ * Processor 가 실패하면 그 transaction 만 rollback 되고
+ * 여기서 잡아 로그만 남긴다.
+ *
+ * 이 PR 에서는 @Async, 자동 재시도, 메시지 큐를 도입하지 않는다.
+ * 실패한 일기는 본문 수정 등으로 이벤트가 다시 발행될 때 복구된다.
+ */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class MentionExtractedEventListener {
 
-	private final DiaryRepository diaryRepository;
-	private final ExtractionResultValidator extractionResultValidator;
-	private final MentionCandidateService mentionCandidateService;
-	private final MentionCandidatePersonRefService relationService;
-	private final DiaryPersonService diaryPersonService;
-	private final PersonAggregateService personAggregateService;
+	private final MentionExtractionProcessor mentionExtractionProcessor;
 
-	@EventListener
-	@Transactional
+	/*
+	 * fallbackExecution 이 없으면 트랜잭션 밖에서 발행된 이벤트는
+	 * 아무 로그도 없이 그냥 버려진다.
+	 *
+	 * 현재 이 이벤트를 발행하는 코드가 아직 없으므로,
+	 * 나중에 발행부를 추가하는 사람이 @Transactional 안에서
+	 * 발행하지 않아도 Curator 가 조용히 멈추지 않도록 켜 둔다.
+	 *
+	 * 트랜잭션 안에서 발행된 경우에는 그대로 commit 이후에만 실행되고,
+	 * 롤백되면 실행되지 않는다.
+	 */
+	@TransactionalEventListener(
+			phase = TransactionPhase.AFTER_COMMIT,
+			fallbackExecution = true
+	)
 	public void handle(
 			MentionExtractedEvent event
 	) {
-		validateEvent(event);
-
-		Diary diary =
-				findAndValidateDiary(
-						event.diaryId(),
-						event.userId()
-				);
-
-		if (mentionCandidateService.hasCandidates(
-				event.diaryId()
-		)) {
-			return;
-		}
-
-		ExtractionResult extractionResult =
-				event.extractionResult();
-
-		extractionResultValidator.validate(
-				diary.getContent(),
-				extractionResult
-		);
-
-		Map<String, MentionCandidate> personCandidatesByRef =
-				createPersonCandidates(
-						event.diaryId(),
-						event.userId(),
-						extractionResult.persons()
-				);
-
-		List<MentionCandidate> personCandidates =
-				new ArrayList<>(
-						personCandidatesByRef.values()
-				);
-
-		createPlaceCandidates(
-				event.diaryId(),
-				extractionResult.places(),
-				personCandidatesByRef
-		);
-
-		createActivityCandidates(
-				event.diaryId(),
-				extractionResult.activities(),
-				personCandidatesByRef
-		);
-
-		Set<UUID> affectedPersonIds =
-				diaryPersonService.reconcileDiaryPersons(
-						event.diaryId(),
-						event.userId(),
-						personCandidates
-				);
-
-		personAggregateService.recalculate(
-				event.userId(),
-				affectedPersonIds
-		);
-	}
-
-	private Map<String, MentionCandidate> createPersonCandidates(
-			UUID diaryId,
-			UUID userId,
-			List<PersonExtraction> persons
-	) {
-		Map<String, MentionCandidate> candidatesByRef =
-				new HashMap<>();
-
-		Set<UUID> assignedPersonIds =
-				new HashSet<>();
-
-		for (PersonExtraction person : persons) {
-			MentionCandidate candidate =
-					mentionCandidateService
-							.createPersonCandidate(
-									diaryId,
-									userId,
-									person.rawText(),
-									assignedPersonIds
-							);
-
-			candidatesByRef.put(
-					person.ref(),
-					candidate
-			);
-
-			assignedPersonIds.add(
-					candidate.getMatchedPersonId()
-			);
-		}
-
-		return candidatesByRef;
-	}
-
-	private void createPlaceCandidates(
-			UUID diaryId,
-			List<PlaceExtraction> places,
-			Map<String, MentionCandidate> personCandidatesByRef
-	) {
-		for (PlaceExtraction place : places) {
-			MentionCandidate sourceCandidate =
-					mentionCandidateService
-							.createNonPersonCandidate(
-									diaryId,
-									place.rawText(),
-									place.normalizedText(),
-									"PLACE"
-							);
-
-			List<MentionCandidate> relatedPersons =
-					resolvePersonCandidates(
-							place.personRefs(),
-							personCandidatesByRef
-					);
-
-			relationService.createRelations(
-					diaryId,
-					sourceCandidate,
-					relatedPersons
-			);
-		}
-	}
-
-	private void createActivityCandidates(
-			UUID diaryId,
-			List<ActivityExtraction> activities,
-			Map<String, MentionCandidate> personCandidatesByRef
-	) {
-		for (ActivityExtraction activity : activities) {
-			MentionCandidate sourceCandidate =
-					mentionCandidateService
-							.createNonPersonCandidate(
-									diaryId,
-									activity.rawText(),
-									activity.normalizedText(),
-									"ACTIVITY"
-							);
-
-			List<MentionCandidate> relatedPersons =
-					resolvePersonCandidates(
-							activity.personRefs(),
-							personCandidatesByRef
-					);
-
-			relationService.createRelations(
-					diaryId,
-					sourceCandidate,
-					relatedPersons
-			);
-		}
-	}
-
-	private List<MentionCandidate> resolvePersonCandidates(
-			List<String> personRefs,
-			Map<String, MentionCandidate> personCandidatesByRef
-	) {
-		List<MentionCandidate> persons =
-				new ArrayList<>();
-
-		for (String personRef : personRefs) {
-			MentionCandidate candidate =
-					personCandidatesByRef.get(
-							personRef
-					);
-
-			if (candidate == null) {
-				throw new IllegalStateException(
-						"PERSON candidate does not exist for ref: "
-								+ personRef
-				);
-			}
-
-			persons.add(
-					candidate
-			);
-		}
-
-		return persons;
-	}
-
-	private Diary findAndValidateDiary(
-			UUID diaryId,
-			UUID userId
-	) {
-		Diary diary =
-				diaryRepository.findById(
-						diaryId
-				).orElseThrow(
-						() -> new IllegalStateException(
-								"diary does not exist"
-						)
-				);
-
-		if (!userId.equals(
-				diary.getUserId()
-		)) {
-			throw new IllegalStateException(
-					"diary belongs to another user"
-			);
-		}
-
-		return diary;
-	}
-
-	private void validateEvent(
-			MentionExtractedEvent event
-	) {
-		if (event == null) {
-			throw new IllegalArgumentException(
-					"event must not be null"
-			);
-		}
-
-		if (event.diaryId() == null) {
-			throw new IllegalArgumentException(
-					"diaryId must not be null"
-			);
-		}
-
-		if (event.userId() == null) {
-			throw new IllegalArgumentException(
-					"userId must not be null"
-			);
-		}
-
-		if (event.extractionResult() == null) {
-			throw new IllegalArgumentException(
-					"extractionResult must not be null"
+		try {
+			mentionExtractionProcessor.process(event);
+		} catch (Exception e) {
+			/*
+			 * Diary 는 이미 commit 됐으므로 예외를 밖으로 던지지 않는다.
+			 * 던져도 되돌릴 대상이 없고 AFTER_COMMIT 콜백에서 삼켜진다.
+			 */
+			log.error(
+					"Curator mention processing failed. diaryId={}, userId={}",
+					event == null ? null : event.diaryId(),
+					event == null ? null : event.userId(),
+					e
 			);
 		}
 	}
