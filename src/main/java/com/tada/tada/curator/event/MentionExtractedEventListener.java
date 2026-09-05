@@ -1,23 +1,30 @@
 package com.tada.tada.curator.event;
 
+import com.tada.tada.curator.exception.ExtractionValidationException;
 import com.tada.tada.curator.service.MentionExtractionProcessor;
 import com.tada.tada.global.event.MentionExtractedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 /*
- * Curator 후처리는 Diary 저장의 성공 여부를 좌우하지 않는다.
+ * Curator 후처리는 일기 최종 저장의 일부다.
  *
- * Diary transaction 이 commit 된 뒤에 이벤트를 받고,
- * 실제 처리는 MentionExtractionProcessor 의 REQUIRES_NEW transaction 에서 한다.
- * Processor 가 실패하면 그 transaction 만 rollback 되고
- * 여기서 잡아 로그만 남긴다.
+ * Diary 저장 @Transactional 내부에서 발행된 MentionExtractedEvent 를
+ * 일반 동기 @EventListener 로 즉시 받아 같은 트랜잭션에서 처리한다.
  *
- * 이 PR 에서는 @Async, 자동 재시도, 메시지 큐를 도입하지 않는다.
- * 실패한 일기는 본문 수정 등으로 이벤트가 다시 발행될 때 복구된다.
+ * 여기서 예외가 나면 삼키지 않고 그대로 위로 던진다.
+ * 그래야 Diary, Sticker, Candidate, Relation, DiaryPerson, PersonAggregate 를
+ * 포함한 저장 트랜잭션 전체가 rollback 되어
+ * "그 일기는 저장되지 않은 상태" 로 남는다.
+ *
+ * 금지:
+ *   - @TransactionalEventListener(AFTER_COMMIT) 로 커밋 이후 실행
+ *   - Processor 를 REQUIRES_NEW 로 분리
+ *   - 예외를 catch 해서 저장 성공으로 처리
+ * 위 셋 중 하나라도 하면 Curator 가 실패해도 Diary 만 commit 되어
+ * 인물 정보가 비어 있는 일기가 남는다.
  */
 @Slf4j
 @Component
@@ -27,36 +34,47 @@ public class MentionExtractedEventListener {
 	private final MentionExtractionProcessor mentionExtractionProcessor;
 
 	/*
-	 * fallbackExecution 이 없으면 트랜잭션 밖에서 발행된 이벤트는
-	 * 아무 로그도 없이 그냥 버려진다.
+	 * 로그를 남기고 반드시 다시 던진다.
 	 *
-	 * 현재 이 이벤트를 발행하는 코드가 아직 없으므로,
-	 * 나중에 발행부를 추가하는 사람이 @Transactional 안에서
-	 * 발행하지 않아도 Curator 가 조용히 멈추지 않도록 켜 둔다.
+	 * GlobalExceptionHandler 의 catch-all 은 메시지 없이 500 만 응답하고
+	 * 아무 로그도 남기지 않는다. 여기서 남기지 않으면
+	 * 저장 실패의 원인이 어디에도 기록되지 않는다.
 	 *
-	 * 트랜잭션 안에서 발행된 경우에는 그대로 commit 이후에만 실행되고,
-	 * 롤백되면 실행되지 않는다.
+	 * 로그만 남기고 삼키면 안 된다. 다시 던져야
+	 * 저장 트랜잭션 전체가 rollback 된다.
 	 */
-	@TransactionalEventListener(
-			phase = TransactionPhase.AFTER_COMMIT,
-			fallbackExecution = true
-	)
+	@EventListener
 	public void handle(
 			MentionExtractedEvent event
 	) {
 		try {
 			mentionExtractionProcessor.process(event);
-		} catch (Exception e) {
+		} catch (ExtractionValidationException e) {
 			/*
-			 * Diary 는 이미 commit 됐으므로 예외를 밖으로 던지지 않는다.
-			 * 던져도 되돌릴 대상이 없고 AFTER_COMMIT 콜백에서 삼켜진다.
+			 * 사용자에게 나가는 메시지는 한국어 한 줄이라
+			 * 어떤 검증이 깨졌는지는 여기서만 남는다.
 			 */
 			log.error(
-					"Curator mention processing failed. diaryId={}, userId={}",
+					"Curator extraction validation failed. "
+							+ "diaryId={}, userId={}, detail={}",
+					event == null ? null : event.diaryId(),
+					event == null ? null : event.userId(),
+					e.getDetail()
+			);
+
+			throw e;
+
+		} catch (RuntimeException e) {
+			log.error(
+					"Curator mention processing failed. "
+							+ "diaryId={}, userId={}. "
+							+ "저장 트랜잭션 전체를 rollback 한다.",
 					event == null ? null : event.diaryId(),
 					event == null ? null : event.userId(),
 					e
 			);
+
+			throw e;
 		}
 	}
 }

@@ -10,7 +10,7 @@ import org.mockito.Mockito;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -52,28 +52,43 @@ class MentionExtractedEventListenerTest {
 		verify(mentionExtractionProcessor).process(event);
 	}
 
+	/*
+	 * Curator 는 일기 최종 저장 트랜잭션의 일부다.
+	 *
+	 * 예외를 삼키면 Curator 가 실패해도 Diary 만 commit 되어
+	 * 인물 정보가 비어 있는 일기가 남는다.
+	 * 반드시 위로 전파해서 저장 트랜잭션 전체를 rollback 시켜야 한다.
+	 */
 	@Test
-	void processor_실패가_diary_트랜잭션으로_전파되지_않는다() {
-		/*
-		 * Diary 는 이미 commit 된 뒤이므로
-		 * Curator 실패를 밖으로 던지지 않고 로그만 남긴다.
-		 */
+	void processor_실패를_삼키지_않고_그대로_전파한다() {
 		doThrow(new IllegalStateException("boom"))
 				.when(mentionExtractionProcessor)
 				.process(any());
 
-		assertDoesNotThrow(
-				() -> listener.handle(event())
+		IllegalStateException thrown =
+				assertThrows(
+						IllegalStateException.class,
+						() -> listener.handle(event())
+				);
+
+		org.junit.jupiter.api.Assertions.assertEquals(
+				"boom",
+				thrown.getMessage()
 		);
 	}
 
+	/*
+	 * 로그를 남기더라도 반드시 다시 던져야 한다.
+	 * 로그만 남기고 삼키면 저장 트랜잭션이 commit 되어 정책이 깨진다.
+	 */
 	@Test
-	void 검증_실패도_밖으로_전파되지_않는다() {
+	void 검증_실패도_그대로_전파한다() {
 		doThrow(new IllegalArgumentException("invalid"))
 				.when(mentionExtractionProcessor)
 				.process(any());
 
-		assertDoesNotThrow(
+		assertThrows(
+				IllegalArgumentException.class,
 				() -> listener.handle(event())
 		);
 	}

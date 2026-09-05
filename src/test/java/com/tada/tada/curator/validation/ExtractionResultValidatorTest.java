@@ -241,4 +241,50 @@ class ExtractionResultValidatorTest {
 				)
 		);
 	}
+
+	/*
+	 * AI 응답 계약 위반은 서버 버그가 아니라 외부 입력 문제다.
+	 * 500 이 아니라 400 으로 나가고, 사용자에게는 한국어 한 줄이 보여야 한다.
+	 * 어떤 검증이 깨졌는지는 로그로만 남긴다.
+	 */
+	@Test
+	void 검증_실패는_400과_사용자_메시지를_가진다() {
+		ExtractionValidationException exception =
+				assertThrows(
+						ExtractionValidationException.class,
+						() -> validator.validate(
+								"오늘 민수와 놀았다",
+								new ExtractionResult(
+										java.util.List.of(
+												new PersonExtraction(
+														"p1",
+														"없는이름",
+														"PERSON"
+												)
+										),
+										java.util.List.of(),
+										java.util.List.of()
+								)
+						)
+				);
+
+		org.junit.jupiter.api.Assertions.assertEquals(
+				400,
+				exception.getStatusCode()
+		);
+
+		org.junit.jupiter.api.Assertions.assertEquals(
+				"AI 분석 결과가 올바르지 않아 일기를 저장하지 못했습니다.",
+				exception.getMessage()
+		);
+
+		org.junit.jupiter.api.Assertions.assertFalse(
+				exception.getValidationErrors().isEmpty()
+		);
+
+		org.junit.jupiter.api.Assertions.assertTrue(
+				exception.getDetail()
+						.contains("ExtractionResult validation failed")
+		);
+	}
 }

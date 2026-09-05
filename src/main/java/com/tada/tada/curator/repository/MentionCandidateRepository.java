@@ -19,6 +19,17 @@ public interface MentionCandidateRepository
 	boolean existsByDiaryId(
 			UUID diaryId
 	);
+
+	/*
+	 * Diary 영구삭제 때 Diary 도메인이 CuratorCleanupService 를 통해 호출한다.
+	 *
+	 * mention_candidate_person_ref 는 두 FK 가 ON DELETE CASCADE 이므로
+	 * 여기서 Candidate 를 지우면 DB 가 함께 정리한다.
+	 * 같은 Relation 을 서비스에서 다시 지우지 않는다.
+	 */
+	void deleteByDiaryId(
+			UUID diaryId
+	);
 	
 	@Query("""
         SELECT candidate

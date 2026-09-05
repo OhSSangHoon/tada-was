@@ -28,12 +28,19 @@ import java.util.UUID;
 /*
  * Curator 후처리 본체.
  *
- * Diary 트랜잭션과 분리된 별도 트랜잭션에서 실행한다.
- * 여기서 실패하면 이 트랜잭션만 rollback 되고 Diary 저장은 유지된다.
+ * 일기 최종 저장 @Transactional 안에서 동기로 실행된다.
+ * 별도 트랜잭션을 열지 않고 상위 저장 트랜잭션에 그대로 참여한다.
+ * 여기서 실패하면 Diary, Sticker, Candidate, Relation, DiaryPerson,
+ * PersonAggregate 를 포함한 저장 트랜잭션 전체가 rollback 된다.
  *
- * 중복 Event 방어는 Diary row lock 을 먼저 잡고
- * 기존 Candidate 존재 여부를 확인하는 순서로 한다.
- * (Listener 가 AFTER_COMMIT 이므로 Diary 는 이미 commit 된 상태다)
+ * REQUIRES_NEW 를 쓰면 안 된다. 별도 트랜잭션이 되면
+ * Curator 가 실패해도 Diary 만 commit 되어 정책이 깨진다.
+ *
+ * Diary row lock 과 기존 Candidate 확인은 남겨 두되,
+ * 단일 트랜잭션 구조에서는 신규 저장 경로에서 실제로 걸리지 않는다.
+ * 신규 저장은 diaryId 가 매번 새로 생성되어 동시 경쟁이 없고,
+ * 새 Diary 라 hasCandidates 는 항상 false 이기 때문이다.
+ * 이 방어가 실제로 필요해지는 시점은 본문 수정 재추출이다. (명세 12)
  *
  * 범위 한정: 이 방식은 "최초 MentionExtractedEvent 의 중복 수신" 만 막는다.
  * 이미 Candidate 가 있는 Diary 는 새 ExtractionResult 가 와도 skip 되므로,
@@ -53,8 +60,16 @@ public class MentionExtractionProcessor {
 	private final PersonAggregateService personAggregateService;
 	private final PersonNormalizer personNormalizer;
 
+	/*
+	 * MANDATORY 다. 상위 트랜잭션이 없으면 즉시 예외가 난다.
+	 *
+	 * REQUIRED 였다면 트랜잭션 밖에서 이벤트가 발행됐을 때
+	 * 여기서 새 트랜잭션을 열어 Curator 데이터만 따로 commit 된다.
+	 * Diary 는 저장 안 됐는데 인물 데이터만 남는 상태가 되므로
+	 * "트랜잭션 밖에서 발행 금지" 를 코드로 강제한다. (명세 17.1)
+	 */
 	@Transactional(
-			propagation = Propagation.REQUIRES_NEW
+			propagation = Propagation.MANDATORY
 	)
 	public void process(
 			MentionExtractedEvent event
