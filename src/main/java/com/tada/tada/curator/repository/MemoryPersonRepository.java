@@ -13,6 +13,6 @@ public interface MemoryPersonRepository extends JpaRepository<MemoryPerson, UUID
 			UUID userId,
 			Collection<String> displayNames
 	);
-	
+
 	List<MemoryPerson> findAllByUserId(UUID userId);
 }
