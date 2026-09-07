@@ -10,6 +10,7 @@ import com.tada.tada.search.repository.SearchRepository;
 import com.tada.tada.search.service.VoyageAIEmbeddingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
+@Profile("!prod")
 @RequiredArgsConstructor
 public class DiaryEmbeddingBackfillRunner implements CommandLineRunner {
 	
