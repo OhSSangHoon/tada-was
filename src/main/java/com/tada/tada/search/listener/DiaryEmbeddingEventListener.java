@@ -6,8 +6,10 @@ import com.tada.tada.global.event.DiaryUpdatedEvent;
 import com.tada.tada.search.repository.SearchRepository;
 import com.tada.tada.search.service.VoyageAIEmbeddingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Arrays;
 
@@ -34,7 +36,8 @@ public class DiaryEmbeddingEventListener {
 		일기 생성 이벤트 처리 - 새 임베딩 생성
 		@param event diaryId, userId만 담고 있음
 	 */
-	@EventListener
+	@Async
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void handleDiaryCreated(DiaryCreatedEvent event) {
 		
 		// content가 이벤트에 없으므로, diaryId로 DB에서 일기를 다시 조회
@@ -56,7 +59,8 @@ public class DiaryEmbeddingEventListener {
 		일기 수정 이벤트 처리 - 재임베딩
 		@param event diaryId, userId, oldContent, newContent를 담고 있음
 	 */
-	@EventListener
+	@Async
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void handleDiaryUpdated(DiaryUpdatedEvent event) {
 		
 		// newContent가 이벤트에 이미 있으므로, DB 재조회 없이 바로 임베딩 계산
