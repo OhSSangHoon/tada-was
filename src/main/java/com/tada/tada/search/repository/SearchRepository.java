@@ -73,15 +73,16 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
        SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
              d.weather AS weather, d.content AS content, d.created_at AS createdAt
        FROM diaries d
-       WHERE d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+       WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
        ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
     """,
 			countQuery = """
                 SELECT COUNT(d.id) FROM diaries d
-                WHERE d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
                 """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesWithPagination(
+			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
 			Pageable pageable
 	);
