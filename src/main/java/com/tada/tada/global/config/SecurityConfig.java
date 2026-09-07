@@ -15,6 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.tada.tada.global.security.JwtAuthFilter;
+import com.tada.tada.global.security.JwtUtil;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import java.util.List;
 
@@ -36,9 +37,11 @@ import java.util.List;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-	
-	private final JwtAuthFilter jwtAuthFilter;
-	
+
+	// JwtAuthFilter는 시큐리티 체인 전용이라 빈으로 등록하지 않으므로
+	// 여기서 필요한 의존성(JwtUtil)만 주입받아 filterChain()에서 직접 생성한다.
+	private final JwtUtil jwtUtil;
+
 	// 소셜 로그인으로 전달받은 사용자 정보를 처리한다.
 	private final CustomOAuth2UserService customOAuth2UserService;
 	
@@ -100,20 +103,13 @@ public class SecurityConfig {
 								.successHandler(oAuth2SuccessHandler)
 				);
 
-		// TODO(진경/B): 여기에 JwtAuthFilter 등록 필요
-		// 본인이 만든 JwtAuthFilter를 아래처럼 등록하면 됨:
-		//   http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-		
 		// JWT 필터를 Spring Security의 기본 인증 필터보다 먼저 실행
 		// 요청에 들어온 Access Token을 확인해서 로그인 여부를 판단한다.
+		// JwtAuthFilter는 빈이 아니라 여기서 직접 생성해서 등록한다.
 		http.addFilterBefore(
-				jwtAuthFilter,
+				new JwtAuthFilter(jwtUtil),
 				UsernamePasswordAuthenticationFilter.class
 		);
-		
-		// 이렇게 하려면 이 클래스에 생성자 주입 추가 필요:
-		//   @RequiredArgsConstructor 어노테이션 추가 +
-		//   private final JwtAuthFilter jwtAuthFilter; 필드 추가
 
 		return http.build();
 	}

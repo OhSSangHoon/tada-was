@@ -6,13 +6,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
 
-@Component
+// Spring Security 체인 전용 필터라 스프링 빈(@Component)으로 만들지 않는다.
+// 빈으로 등록하면 Spring Boot가 전역 서블릿 필터로도 자동 등록해버려서
+// SecurityConfig의 addFilterBefore() 등록과 겹쳐 요청마다 두 번 실행된다.
+// 대신 SecurityConfig에서 필요한 의존성(JwtUtil)만 받아 직접 new로 생성한다.
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 	
