@@ -12,6 +12,7 @@ package com.tada.tada.global.exception;
 * */
 
 import com.tada.tada.global.response.ApiResponse;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -75,15 +76,17 @@ public class GlobalExceptionHandler {
 	}
 	
 	/*
-	 * AI(Gemini)가 계약을 어긴 추출 결과를 줬을 때 발생하는 예외.
-	 * 예: 본문에 없는 인물 이름을 뽑아냈거나, persons/places/activities 배열이 null로 옴.
-	 * 이 경우 일기 저장은 전체 롤백되고, 사용자에게 재시도를 안내해야 하므로 400으로 응답한다.
+	 * @RequestParam에 붙인 @Min/@Max 같은 검증(파라미터 자체 검증)이 실패했을 때 발생하는 예외.
+	 * @Valid로 감싼 Request DTO 검증 실패는 MethodArgumentNotValidException(위 핸들러)이 잡지만,
+	 * month/year처럼 DTO 없이 파라미터에 직접 붙인 검증은 이 예외로 따로 던져진다.
+	 * (컨트롤러에 @Validated가 붙어있어야 이 검증 자체가 동작함)
 	 * */
-	@ExceptionHandler(ExtractionValidationException.class)
-	public ResponseEntity<ApiResponse<Void>> handleExtractionValidationException(ExtractionValidationException  e) {
+	@ExceptionHandler(ConstraintViolationException.class)
+	public ResponseEntity<ApiResponse<Void>>
+	handleConstraintViolationException(ConstraintViolationException e) {
 		return ResponseEntity
 				.status(HttpStatus.BAD_REQUEST)
-				.body(ApiResponse.error("AI 분석 결과가 올바르지 않아 일기를 저장하지 못했습니다."));
+				.body(ApiResponse.error(e.getMessage()));
 	}
 }
 

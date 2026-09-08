@@ -2,6 +2,7 @@ package com.tada.tada.calendar.service;
 
 import com.tada.tada.calendar.dto.CalendarResponse;
 import com.tada.tada.diary.entity.Diary;
+import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
@@ -28,7 +29,7 @@ public class CalendarService {
 		LocalDate start = LocalDate.of(year, month, 1);
 		LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
 		
-		List<Diary> diaries = diaryRepository.findByUserIdAndEntryDateBetween(userId, start, end);
+		List<Diary> diaries = diaryRepository.findByUserIdAndEntryDateBetweenAndStatus(userId, start, end, DiaryStatus.ACTIVE);
 		
 		List<UUID> diaryIds = diaries.stream().map(Diary::getId).toList();
 		List<Sticker> stickers = stickerRepository.findByDiaryIdIn(diaryIds);
