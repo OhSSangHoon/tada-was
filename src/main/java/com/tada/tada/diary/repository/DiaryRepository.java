@@ -3,6 +3,9 @@ package com.tada.tada.diary.repository;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;

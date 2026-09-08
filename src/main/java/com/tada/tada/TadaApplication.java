@@ -2,12 +2,14 @@ package com.tada.tada;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication
+@EnableAsync
 public class TadaApplication {
-
+	
 	public static void main(String[] args) {
 		SpringApplication.run(TadaApplication.class, args);
 	}
-
+	
 }
