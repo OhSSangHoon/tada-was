@@ -1,34 +1,28 @@
 package com.tada.tada.global.security;
 
+import tools.jackson.databind.ObjectMapper;
 import com.tada.tada.auth.dto.AuthResponse;
-import com.tada.tada.auth.entity.RefreshToken;
-import com.tada.tada.auth.repository.RefreshTokenRepository;
 import com.tada.tada.auth.service.CustomOAuth2User;
+import com.tada.tada.auth.service.RefreshTokenService;
 import com.tada.tada.global.response.ApiResponse;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 	
 	private final JwtUtil jwtUtil;
-	private final RefreshTokenRepository refreshTokenRepository;
+	private final RefreshTokenService refreshTokenService;
+	private final ObjectMapper objectMapper;
 	
-	@Value("${jwt.refresh-expiration}")
-	private long refreshExpiration;
-	
-	@Transactional
 	@Override
 	public void onAuthenticationSuccess(
 			HttpServletRequest request,
@@ -48,25 +42,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 		String refreshToken =
 				jwtUtil.createRefreshToken(oAuth2User.getUserId());
 		
-		// 기존 Refresh Token 삭제
-		refreshTokenRepository.deleteByUserId(
-				oAuth2User.getUserId()
-		);
-		
-		// Refresh Token 만료 시간 계산
-		LocalDateTime expiresAt =
-				LocalDateTime.now().plusNanos(
-						refreshExpiration * 1_000_000
-				);
-		
-		// Refresh Token DB 저장
-		RefreshToken token = new RefreshToken(
+		// Refresh Token 생성 및 DB 저장
+		refreshTokenService.saveRefreshToken(
 				oAuth2User.getUserId(),
-				refreshToken,
-				expiresAt
+				refreshToken
 		);
-		
-		refreshTokenRepository.save(token);
 		
 		// Access Token + Refresh Token 응답
 		AuthResponse authResponse =
@@ -78,12 +58,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");
 		
+		// ApiResponse를 JSON으로 변환해서 응답
 		response.getWriter().write(
-				"{\"success\":true,\"data\":{\"accessToken\":\""
-						+ accessToken
-						+ "\",\"refreshToken\":\""
-						+ refreshToken
-						+ "\"},\"message\":null}"
+				objectMapper.writeValueAsString(responseBody)
 		);
 	}
 }

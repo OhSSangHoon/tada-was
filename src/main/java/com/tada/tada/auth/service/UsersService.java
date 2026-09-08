@@ -11,7 +11,6 @@ import com.tada.tada.auth.repository.UsersRepository;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.global.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +24,9 @@ public class UsersService {
 	
 	private final UsersRepository usersRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final RefreshTokenService refreshTokenService;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtUtil jwtUtil;
-	
-	@Value("${jwt.refresh-expiration}")
-	private long refreshExpiration;
 	
 	// 일반 회원가입
 	public void signUp(SignUpForm form) {
@@ -65,7 +62,6 @@ public class UsersService {
 	}
 	
 	// 로그인
-	@Transactional
 	public AuthResponse login(LoginForm form) {
 		
 		// LOCAL 계정 조회
@@ -99,24 +95,11 @@ public class UsersService {
 		String refreshToken =
 				jwtUtil.createRefreshToken(users.getId());
 		
-		// 기존 Refresh Token 삭제
-		refreshTokenRepository.deleteByUserId(users.getId());
-		
-		// Refresh Token 만료 시간 계산
-		LocalDateTime expiresAt =
-				LocalDateTime.now().plusNanos(
-						refreshExpiration * 1_000_000
-				);
-		
-		// Refresh Token 생성
-		RefreshToken token = new RefreshToken(
+		// Refresh Token 생성 및 DB 저장
+		refreshTokenService.saveRefreshToken(
 				users.getId(),
-				refreshToken,
-				expiresAt
+				refreshToken
 		);
-		
-		// Refresh Token DB 저장
-		refreshTokenRepository.save(token);
 		
 		return new AuthResponse(
 				accessToken,
