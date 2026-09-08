@@ -1,6 +1,5 @@
 package com.tada.tada.global.security;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,19 +19,36 @@ public class JwtUtil {
 	@Value("${jwt.expiration}")
 	private long expiration;
 	
-	// JWT 생성
+	@Value("${jwt.refresh-expiration}")
+	private long refreshExpiration;
+	
+	// Access Token 생성
 	public String createToken(UUID userId) {
 		Date now = new Date();
 		
 		return Jwts.builder()
 				.subject(userId.toString())
+				.claim("type", "access")
 				.issuedAt(now)
 				.expiration(new Date(now.getTime() + expiration))
 				.signWith(getKey())
 				.compact();
 	}
 	
-	// JWT에서 회원 ID 확인
+	// Refresh Token 생성
+	public String createRefreshToken(UUID userId) {
+		Date now = new Date();
+		
+		return Jwts.builder()
+				.subject(userId.toString())
+				.claim("type", "refresh")
+				.issuedAt(now)
+				.expiration(new Date(now.getTime() + refreshExpiration))
+				.signWith(getKey())
+				.compact();
+	}
+	
+	// JWT에서 사용자 ID 추출
 	public UUID getUserId(String token) {
 		String subject = Jwts.parser()
 				.verifyWith(getKey())
@@ -44,7 +60,7 @@ public class JwtUtil {
 		return UUID.fromString(subject);
 	}
 	
-	// JWT 유효성 확인
+	// JWT 자체의 유효성 확인
 	public boolean validateToken(String token) {
 		try {
 			Jwts.parser()
@@ -58,7 +74,22 @@ public class JwtUtil {
 		}
 	}
 	
-	// 비밀키 생성
+	// Access Token인지 확인
+	public boolean isAccessToken(String token) {
+		try {
+			String type = Jwts.parser()
+					.verifyWith(getKey())
+					.build()
+					.parseSignedClaims(token)
+					.getPayload()
+					.get("type", String.class);
+			
+			return "access".equals(type);
+		} catch (Exception e) {
+			return false;
+		}
+	}
+	
 	private SecretKey getKey() {
 		return Keys.hmacShaKeyFor(
 				secret.getBytes(StandardCharsets.UTF_8)
