@@ -504,7 +504,9 @@ public class PersonMatchingService {
 	) {
 		if (normalizedText == null
 				|| normalizedText.isBlank()
-				|| normalizedText.length() < 2) {
+				|| normalizedText.length()
+				< PersonMatchingPolicy
+				.EDIT_DISTANCE_MIN_LENGTH) {
 			return;
 		}
 
@@ -560,7 +562,9 @@ public class PersonMatchingService {
 	) {
 		if (targetText == null
 				|| targetText.isBlank()
-				|| targetText.length() < 2) {
+				|| targetText.length()
+				< PersonMatchingPolicy
+				.EDIT_DISTANCE_MIN_LENGTH) {
 			return;
 		}
 

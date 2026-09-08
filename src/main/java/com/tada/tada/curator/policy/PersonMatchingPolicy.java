@@ -16,6 +16,8 @@ public final class PersonMatchingPolicy {
 
 	public static final int MAX_EDIT_DISTANCE = 1;
 
+	public static final int EDIT_DISTANCE_MIN_LENGTH = 2;
+
 	public static final int NORMALIZED_HISTORY_MIN_COUNT = 2;
 
 	public static final double NORMALIZED_HISTORY_MIN_DOMINANCE_RATIO = 0.80;

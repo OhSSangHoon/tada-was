@@ -35,6 +35,10 @@ public class PersonNormalizer {
 					"그", "걔", "쟤", "얘", "나", "너", "저"
 			);
 
+	private static final int SURNAME_VARIANT_NAME_LENGTH = 3;
+
+	private static final int MIN_BASE_LENGTH_AFTER_PARTICLE = 2;
+
 	private static final Set<String> COMMON_SURNAMES =
 			Set.of(
 					"김", "이", "박", "최", "정",
@@ -252,7 +256,7 @@ public class PersonNormalizer {
 			return "";
 		}
 
-		if (text.length() != 3) {
+		if (text.length() != SURNAME_VARIANT_NAME_LENGTH) {
 			return text;
 		}
 
@@ -527,7 +531,7 @@ public class PersonNormalizer {
 			return text;
 		}
 
-		return base.length() >= 2
+		return base.length() >= MIN_BASE_LENGTH_AFTER_PARTICLE
 				|| ONE_CHAR_ALLOWED_BASES.contains(base)
 				? base
 				: text;
