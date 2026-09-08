@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,7 +53,8 @@ public class PersonAggregateService {
 			return;
 		}
 
-		validatePersonOwners(
+		// 잠금이 snapshot 조회보다 먼저여야 한다. 순서를 바꾸면 낡은 값을 읽는다.
+		lockPersonsInOrder(
 				userId,
 				personIds
 		);
@@ -171,24 +173,32 @@ public class PersonAggregateService {
 		return aggregateMap;
 	}
 
-	private void validatePersonOwners(
+	/*
+	 * 영향 인물 행을 UUID 오름차순으로 잠그고 소유권을 검증한다. (명세 17.3)
+	 * 정렬 순서가 두 트랜잭션 사이의 deadlock 을 막는다.
+	 */
+	private void lockPersonsInOrder(
 			UUID userId,
 			Set<UUID> personIds
 	) {
-		List<MemoryPerson> persons =
-				memoryPersonRepository
-						.findAllById(
-								personIds
-						);
+		List<UUID> orderedPersonIds =
+				new ArrayList<>(personIds);
 
-		if (persons.size()
-				!= personIds.size()) {
-			throw new IllegalStateException(
-					"one or more persons do not exist"
-			);
-		}
+		Collections.sort(orderedPersonIds);
 
-		for (MemoryPerson person : persons) {
+		for (UUID personId : orderedPersonIds) {
+
+			MemoryPerson person =
+					memoryPersonRepository
+							.findByIdForUpdate(
+									personId
+							)
+							.orElseThrow(
+									() -> new IllegalStateException(
+											"one or more persons do not exist"
+									)
+							);
+
 			if (!userId.equals(
 					person.getUserId()
 			)) {

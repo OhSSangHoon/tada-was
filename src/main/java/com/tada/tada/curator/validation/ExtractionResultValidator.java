@@ -32,10 +32,65 @@ public class ExtractionResultValidator {
 					"나", "너", "저", "우리", "저희", "너희", "당신",
 					"자기", "본인", "누구", "아무", "아무나", "아무도",
 					"사람", "사람들", "이들", "저들",
-					"다들", "모두", "모두들", "여럿", "여러분",
+					"다", "다들", "모두", "모두들", "여럿", "여러분",
 					"애들", "얘들", "친구들", "동료들", "팀원들",
-					"가족들", "다른사람", "다른사람들", "누군가"
+					"가족", "가족들", "식구", "식구들", "친척", "친척들",
+					"형제", "자매", "남매", "부모", "부모님",
+					"어른들", "손님들", "사람들끼리",
+					"전부", "다같이", "다함께", "모두다", "둘다", "셋다",
+					"함께", "같이", "서로", "몇몇",
+					"다른사람", "다른사람들", "누군가"
 			);
+
+	/*
+	 * 완전일치만으로는 "우리" 는 막고 "우리들" 은 놓친다.
+	 * 아래 네 가지 결합 패턴을 추가로 판정한다. (명세 5.3)
+	 */
+
+	/** 대명사 어간. 복수·한정 접미사와 결합하면 거부한다. */
+	private static final Set<String> PRONOUN_STEMS =
+			Set.of(
+					"우리", "저희", "너희", "그", "걔", "쟤", "얘",
+					"나", "너", "저", "당신", "자기", "본인", "누구", "아무"
+			);
+
+	private static final Set<String> PRONOUN_PLURAL_SUFFIXES =
+			Set.of("들", "네", "끼리");
+
+	/** 소유 대명사. 뒤에 사람 집합 명사가 붙으면 거부한다. */
+	private static final Set<String> GROUP_OWNERS =
+			Set.of("우리", "저희", "너희", "내", "제");
+
+	/** 집합 명사만. "엄마" 같은 단수 호칭을 넣으면 "우리 엄마" 가 막힌다. */
+	private static final Set<String> GROUP_HEADS =
+			Set.of(
+					"가족", "식구", "친척", "팀", "반", "조", "그룹",
+					"모임", "동아리", "동기", "멤버", "일행", "패거리",
+					"형제", "자매", "남매", "부모", "부모님",
+					"친구들", "사람들", "애들", "얘들", "동료들", "팀원들", "가족들"
+			);
+
+	/** "한" 은 넣지 않는다. "한영", "한나" 가 깨진다. */
+	private static final Set<String> DETERMINERS =
+			Set.of("그", "저", "이", "다른", "어떤", "무슨", "웬");
+
+	/** 한 글자 머리 명사("자", "이")는 넣지 않는다. "이모", "이수" 가 깨진다. */
+	private static final Set<String> GENERIC_HEADS =
+			Set.of(
+					"사람", "사람들", "애", "애들", "얘", "얘들",
+					"분", "분들", "친구", "친구들",
+					"녀석", "녀석들", "여자", "남자", "아이", "아이들"
+			);
+
+	private static final Set<String> QUANTITY_WORDS =
+			Set.of(
+					"한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열",
+					"둘", "셋", "넷",
+					"여러", "몇", "몇몇", "여럿", "수", "수십", "온"
+			);
+
+	private static final Set<String> COUNT_UNITS =
+			Set.of("명", "분", "사람", "이서", "커플", "쌍");
 
 	private final PersonNormalizer personNormalizer;
 
@@ -347,7 +402,9 @@ public class ExtractionResultValidator {
 			return;
 		}
 
-		if (isNonPersonTerm(normalization.normalizedText())
+		// "다 함께" 는 "께" 가 조사로 깎여 "다 함" 이 되므로 원문도 본다.
+		if (isNonPersonTerm(rawText)
+				|| isNonPersonTerm(normalization.normalizedText())
 				|| isNonPersonTerm(
 				normalization.displayNameCandidate()
 		)) {
@@ -364,9 +421,139 @@ public class ExtractionResultValidator {
 			return false;
 		}
 
-		return NON_PERSON_TERMS.contains(
-				value.replace(" ", "")
-		);
+		String compact =
+				value.replace(" ", "");
+
+		if (compact.isEmpty()) {
+			return false;
+		}
+
+		return NON_PERSON_TERMS.contains(compact)
+				|| isPronounPlural(compact)
+				|| isPronounGroup(compact)
+				|| isDeterminerGeneric(compact)
+				|| isCountExpression(compact);
+	}
+
+	/** "우리들", "저희들", "걔네", "우리끼리" */
+	private boolean isPronounPlural(String compact) {
+		for (String suffix
+				: PRONOUN_PLURAL_SUFFIXES) {
+
+			String stem =
+					stripSuffix(compact, suffix);
+
+			if (stem == null) {
+				continue;
+			}
+
+			// "그들끼리" 처럼 이미 복수인 어간도 있다.
+			if (PRONOUN_STEMS.contains(stem)
+					|| NON_PERSON_TERMS.contains(stem)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** "우리 가족", "우리 팀", "내 친구들" */
+	private boolean isPronounGroup(String compact) {
+		for (String owner : GROUP_OWNERS) {
+
+			String head =
+					stripPrefix(compact, owner);
+
+			if (head == null) {
+				continue;
+			}
+
+			if (GROUP_HEADS.contains(head)
+					|| NON_PERSON_TERMS.contains(head)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** "그 사람", "다른 친구", "어떤 애" */
+	private boolean isDeterminerGeneric(String compact) {
+		for (String determiner : DETERMINERS) {
+
+			String head =
+					stripPrefix(compact, determiner);
+
+			if (head != null
+					&& GENERIC_HEADS.contains(head)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** "여러 명", "몇 명", "세 명", "3명", "두 사람" */
+	private boolean isCountExpression(String compact) {
+		for (String unit : COUNT_UNITS) {
+
+			String quantity =
+					stripSuffix(compact, unit);
+
+			if (quantity == null) {
+				continue;
+			}
+
+			if (QUANTITY_WORDS.contains(quantity)
+					|| isAllDigits(quantity)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** 나머지가 비면 결합이 아니라 그 단어 자체이므로 null. */
+	private String stripPrefix(
+			String compact,
+			String prefix
+	) {
+		return compact.length() > prefix.length()
+				&& compact.startsWith(prefix)
+				? compact.substring(prefix.length())
+				: null;
+	}
+
+	private String stripSuffix(
+			String compact,
+			String suffix
+	) {
+		return compact.length() > suffix.length()
+				&& compact.endsWith(suffix)
+				? compact.substring(
+				0,
+				compact.length() - suffix.length()
+		)
+				: null;
+	}
+
+	private boolean isAllDigits(String value) {
+		if (value.isEmpty()) {
+			return false;
+		}
+
+		for (int index = 0;
+			 index < value.length();
+			 index++) {
+
+			if (!Character.isDigit(
+					value.charAt(index)
+			)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/*
