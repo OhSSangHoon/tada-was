@@ -13,6 +13,8 @@ import java.util.UUID;
 @Repository
 public interface StickerRepository extends JpaRepository<Sticker, UUID> {
 	
+	List<Sticker> findByDiaryIdIn(List<UUID> diaryIds);
+
 	/*
 		사용자가 모은 스티커 전체 목록 조회 (페이지네이션 없음 - 프론트에서 무한 스크롤)
 		
