@@ -12,6 +12,7 @@ package com.tada.tada.global.exception;
 * */
 
 import com.tada.tada.global.response.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 	/*
@@ -66,9 +68,22 @@ public class GlobalExceptionHandler {
 	* */
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<Void>> handleEception(Exception e){
+		log.error("예상하지 못한 서버 오류", e);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(ApiResponse.error("서버 내부 오류가 발생했습니다."));
+	}
+	
+	/*
+	 * AI(Gemini)가 계약을 어긴 추출 결과를 줬을 때 발생하는 예외.
+	 * 예: 본문에 없는 인물 이름을 뽑아냈거나, persons/places/activities 배열이 null로 옴.
+	 * 이 경우 일기 저장은 전체 롤백되고, 사용자에게 재시도를 안내해야 하므로 400으로 응답한다.
+	 * */
+	@ExceptionHandler(ExtractionValidationException.class)
+	public ResponseEntity<ApiResponse<Void>> handleExtractionValidationException(ExtractionValidationException  e) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(ApiResponse.error("AI 분석 결과가 올바르지 않아 일기를 저장하지 못했습니다."));
 	}
 }
 
