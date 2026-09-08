@@ -4,9 +4,15 @@ import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
 import com.tada.tada.diary.entity.Diary;
+import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
+import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.global.event.DiaryCreatedEvent;
+import com.tada.tada.global.event.DiaryTrashedEvent;
+import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +24,8 @@ import java.util.UUID;
 public class DiaryService {
 
 	private final DiaryRepository diaryRepository;
+	private final StickerRepository stickerRepository;
+	private final ApplicationEventPublisher eventPublisher;
 	
 	@Transactional
 	public DiaryResponse createDiary(UUID userId, DiaryCreateForm form) {
@@ -30,6 +38,23 @@ public class DiaryService {
 				.build();
 		
 		Diary savedDiary = diaryRepository.save(diary);
+		
+		Sticker sticker = Sticker.builder()
+				.diaryId(savedDiary.getId())
+				.imageUrl(form.getImageUrl())
+				.keyword(form.getKeyword())
+				.type(form.getType())
+				.build();
+				
+		stickerRepository.save(sticker);
+		
+		eventPublisher.publishEvent(
+				new MentionExtractedEvent(savedDiary.getId(), userId, form.getExtractionResult())
+		);
+		eventPublisher.publishEvent(
+				new DiaryCreatedEvent(savedDiary.getId(), userId)
+		);
+		
 		return DiaryResponse.from(savedDiary);
 	}
 	
@@ -80,5 +105,7 @@ public class DiaryService {
 		}
 		
 		diary.trash();
+		
+		eventPublisher.publishEvent(new DiaryTrashedEvent(diaryId, userId));
 	}
 }
