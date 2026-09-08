@@ -28,6 +28,7 @@ public class JwtUtil {
 		
 		return Jwts.builder()
 				.subject(userId.toString())
+				.claim("type", "access")
 				.issuedAt(now)
 				.expiration(new Date(now.getTime() + expiration))
 				.signWith(getKey())
@@ -40,13 +41,14 @@ public class JwtUtil {
 		
 		return Jwts.builder()
 				.subject(userId.toString())
+				.claim("type", "refresh")
 				.issuedAt(now)
 				.expiration(new Date(now.getTime() + refreshExpiration))
 				.signWith(getKey())
 				.compact();
 	}
 	
-	// JWT에서 회원 ID 확인
+	// JWT에서 사용자 ID 추출
 	public UUID getUserId(String token) {
 		String subject = Jwts.parser()
 				.verifyWith(getKey())
@@ -58,7 +60,7 @@ public class JwtUtil {
 		return UUID.fromString(subject);
 	}
 	
-	// JWT 유효성 확인
+	// JWT 자체의 유효성 확인
 	public boolean validateToken(String token) {
 		try {
 			Jwts.parser()
@@ -72,7 +74,22 @@ public class JwtUtil {
 		}
 	}
 	
-	// 비밀키 생성
+	// Access Token인지 확인
+	public boolean isAccessToken(String token) {
+		try {
+			String type = Jwts.parser()
+					.verifyWith(getKey())
+					.build()
+					.parseSignedClaims(token)
+					.getPayload()
+					.get("type", String.class);
+			
+			return "access".equals(type);
+		} catch (Exception e) {
+			return false;
+		}
+	}
+	
 	private SecretKey getKey() {
 		return Keys.hmacShaKeyFor(
 				secret.getBytes(StandardCharsets.UTF_8)
