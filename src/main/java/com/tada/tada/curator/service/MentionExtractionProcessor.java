@@ -160,18 +160,20 @@ public class MentionExtractionProcessor {
 				new HashSet<>();
 
 		/*
-		 * 같은 extraction 안에서
-		 * 조사/표현 차이만 있는 동일 PERSON ref가
-		 * 이미 할당한 인물을 다시 사용할 수 있도록 한다.
+		 * 같은 extraction 안에서 이미 할당한 인물을 다시 사용할 수
+		 * 있게 하는 두 가지 근거를 모은다. (findReusablePersonIdsInDiary)
 		 *
-		 * 예:
-		 * p1 = "민수"
-		 * p2 = "민수가"
+		 *   1. 조사 변형: normalizedText가 완전히 같음
+		 *      예: p1 = "민수", p2 = "민수가" (둘 다 "민수")
+		 *   2. 성 포함/생략 변형: 한쪽에서 성을 떼면 다른 쪽과 같음
+		 *      예: p1 = "민수", p2 = "김민수"
+		 *      PersonMatchingService.matchesSurnameVariant 가 일기 간
+		 *      유사도 점수에 쓰는 것과 같은 관계를, 같은 일기 안에서는
+		 *      재사용 근거로 쓴다.
 		 *
-		 * 둘 모두 normalizedText가 "민수"이면
-		 * 이전 민수 personId 하나만 block에서 해제한다.
-		 *
-		 * 단, 같은 normalizedText에 이미 2명 이상이 할당된 경우에는
+		 * 두 근거를 합친 후보가 정확히 한 명일 때만 block에서
+		 * 해제한다. 이미 2명 이상이 걸리면(예: 이 일기에 "민수"와
+		 * "김민수"가 서로 다른 사람으로 이미 따로 배정돼 있는 경우)
 		 * 어떤 인물을 재사용해야 할지 확정할 수 없으므로
 		 * 자동으로 unblock하지 않는다.
 		 */
@@ -193,23 +195,17 @@ public class MentionExtractionProcessor {
 							assignedPersonIds
 					);
 
-			Set<UUID> sameNormalizedPersonIds =
-					assignedPersonIdsByNormalizedText
-							.get(
-									normalizedText
-							);
+			Set<UUID> reusablePersonIds =
+					findReusablePersonIdsInDiary(
+							normalizedText,
+							assignedPersonIdsByNormalizedText
+					);
 
-			if (sameNormalizedPersonIds != null
-					&& sameNormalizedPersonIds.size()
-					== 1) {
-
-				UUID reusablePersonId =
-						sameNormalizedPersonIds
-								.iterator()
-								.next();
-
+			if (reusablePersonIds.size() == 1) {
 				blockedPersonIds.remove(
-						reusablePersonId
+						reusablePersonIds
+								.iterator()
+								.next()
 				);
 			}
 
@@ -246,6 +242,67 @@ public class MentionExtractionProcessor {
 		}
 
 		return candidatesByRef;
+	}
+
+	/*
+	 * assignedPersonIdsByNormalizedText 에 쌓인, 이미 이 일기에서
+	 * 배정된 (normalizedText -> personId) 관계 중에서 이번 ref 와
+	 * 같은 사람일 근거가 있는 personId 를 모은다.
+	 *
+	 * 조사 변형(문자열이 같음)과 성 포함/생략 변형
+	 * (personNormalizer.removeSurname 으로 서로 도달 가능함)
+	 * 두 근거를 하나의 후보 집합으로 합친다.
+	 *
+	 * 호출부는 이 결과가 정확히 한 명일 때만 재사용한다. 두 근거가
+	 * 서로 다른 사람을 가리키면 후보가 2명 이상이 되어 자동으로
+	 * 보수적인 쪽(차단 유지)으로 떨어진다.
+	 */
+	private Set<UUID> findReusablePersonIdsInDiary(
+			String normalizedText,
+			Map<String, Set<UUID>>
+					assignedPersonIdsByNormalizedText
+	) {
+		Set<UUID> reusablePersonIds =
+				new HashSet<>();
+
+		String surnameRemoved =
+				personNormalizer.removeSurname(
+						normalizedText
+				);
+
+		for (Map.Entry<String, Set<UUID>> entry
+				: assignedPersonIdsByNormalizedText
+				.entrySet()) {
+
+			String assignedNormalizedText =
+					entry.getKey();
+
+			boolean sameParticleVariant =
+					assignedNormalizedText.equals(
+							normalizedText
+					);
+
+			boolean sameSurnameVariant =
+					!sameParticleVariant
+							&& (assignedNormalizedText
+							.equals(surnameRemoved)
+
+							|| personNormalizer
+							.removeSurname(
+									assignedNormalizedText
+							)
+							.equals(normalizedText));
+
+			if (sameParticleVariant
+					|| sameSurnameVariant) {
+
+				reusablePersonIds.addAll(
+						entry.getValue()
+				);
+			}
+		}
+
+		return reusablePersonIds;
 	}
 
 	private void createPlaceCandidates(
