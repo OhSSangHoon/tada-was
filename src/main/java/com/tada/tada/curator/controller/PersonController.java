@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/persons")
+@RequestMapping("/api/curator/persons")
 @RequiredArgsConstructor
 public class PersonController {
 
