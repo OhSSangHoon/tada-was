@@ -619,7 +619,7 @@ public class ExtractionResultValidator {
 		if (isBlank(rawText)
 				|| isBlank(normalizedText)
 				|| personRefs == null
-				|| personRefs.contains(null)) {
+				|| personRefs.stream().anyMatch(this::isBlank)) {
 			return;
 		}
 
