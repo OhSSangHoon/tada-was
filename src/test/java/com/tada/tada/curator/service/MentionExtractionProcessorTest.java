@@ -276,7 +276,7 @@ class MentionExtractionProcessorTest {
 		);
 		PersonResolverService resolverService = new PersonResolverService(
 				matchingService,
-				new PersonCreationGuard(candidateRepository),
+				new PersonCreationGuard(candidateRepository, normalizer),
 				normalizer,
 				memoryPersonRepository
 		);

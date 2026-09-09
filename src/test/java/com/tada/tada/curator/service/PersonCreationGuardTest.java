@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 class PersonCreationGuardTest {
 
 	private MentionCandidateRepository mentionCandidateRepository;
+	private PersonNormalizer personNormalizer;
 	private PersonCreationGuard personCreationGuard;
 
 	@BeforeEach
@@ -30,9 +31,13 @@ class PersonCreationGuardTest {
 		mentionCandidateRepository =
 				Mockito.mock(MentionCandidateRepository.class);
 
+		personNormalizer =
+				new PersonNormalizer();
+
 		personCreationGuard =
 				new PersonCreationGuard(
-						mentionCandidateRepository
+						mentionCandidateRepository,
+						personNormalizer
 				);
 	}
 
@@ -116,27 +121,27 @@ class PersonCreationGuardTest {
 
 		List<MentionCandidate> histories = List.of(
 				createPersonCandidate(
-						"민혁씨",
+						"민혁에게서",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"민혁님",
+						"민혁한테서",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"김민혁",
+						"민혁에게",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"민혁이",
+						"민혁한테",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"민혁형",
+						"민혁하고",
 						"민혁",
 						personIdA
 				)
@@ -144,7 +149,7 @@ class PersonCreationGuardTest {
 
 		when(mentionCandidateRepository.findPersonMatchHistory(
 				eq(userId),
-				eq("새로운민혁표현"),
+				eq("민혁과"),
 				eq("민혁"),
 				eq(MentionCandidateStatus.CONFIRMED)
 		)).thenReturn(histories);
@@ -152,7 +157,7 @@ class PersonCreationGuardTest {
 		Optional<UUID> result =
 				personCreationGuard.findReusablePerson(
 						userId,
-						"새로운민혁표현",
+						"민혁과",
 						"민혁"
 				);
 
@@ -171,22 +176,22 @@ class PersonCreationGuardTest {
 
 		List<MentionCandidate> histories = List.of(
 				createPersonCandidate(
-						"민혁씨",
+						"민혁에게서",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"민혁님",
+						"민혁한테서",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"김민혁",
+						"민혁에게",
 						"민혁",
 						personIdC
 				),
 				createPersonCandidate(
-						"민혁형",
+						"민혁한테",
 						"민혁",
 						personIdA
 				)
@@ -194,7 +199,7 @@ class PersonCreationGuardTest {
 
 		when(mentionCandidateRepository.findPersonMatchHistory(
 				eq(userId),
-				eq("새로운민혁표현"),
+				eq("민혁과"),
 				eq("민혁"),
 				eq(MentionCandidateStatus.CONFIRMED)
 		)).thenReturn(histories);
@@ -202,7 +207,7 @@ class PersonCreationGuardTest {
 		Optional<UUID> result =
 				personCreationGuard.findReusablePerson(
 						userId,
-						"새로운민혁표현",
+						"민혁과",
 						"민혁"
 				);
 
@@ -220,18 +225,18 @@ class PersonCreationGuardTest {
 		UUID personIdC = UUID.randomUUID();
 
 		List<MentionCandidate> histories = List.of(
-				createPersonCandidate("표현C1", "민혁", personIdC),
-				createPersonCandidate("표현C2", "민혁", personIdC),
-				createPersonCandidate("표현C3", "민혁", personIdC),
+				createPersonCandidate("민혁에게서", "민혁", personIdC),
+				createPersonCandidate("민혁한테서", "민혁", personIdC),
+				createPersonCandidate("민혁에게", "민혁", personIdC),
 
-				createPersonCandidate("표현A1", "민혁", personIdA),
-				createPersonCandidate("표현A2", "민혁", personIdA),
-				createPersonCandidate("표현A3", "민혁", personIdA)
+				createPersonCandidate("민혁한테", "민혁", personIdA),
+				createPersonCandidate("민혁하고", "민혁", personIdA),
+				createPersonCandidate("민혁과", "민혁", personIdA)
 		);
 
 		when(mentionCandidateRepository.findPersonMatchHistory(
 				eq(userId),
-				eq("새로운민혁표현"),
+				eq("민혁께"),
 				eq("민혁"),
 				eq(MentionCandidateStatus.CONFIRMED)
 		)).thenReturn(histories);
@@ -239,8 +244,78 @@ class PersonCreationGuardTest {
 		Optional<UUID> result =
 				personCreationGuard.findReusablePerson(
 						userId,
-						"새로운민혁표현",
+						"민혁께",
 						"민혁"
+				);
+
+		assertEquals(
+				Optional.empty(),
+				result
+		);
+	}
+
+	@Test
+	void 애매한_조사로만_도달한_과거_이력은_normalizedText_재사용에서_제외한다() {
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		/*
+		 * "김성은", "김성이" 는 애매한 조사(은/이)를 떼야만 "김성" 이 된다.
+		 * safeMatchCandidates 에는 없으므로, 과거 이력이 아무리 쌓여도
+		 * "김성" 재사용의 근거가 되면 안 된다.
+		 */
+		List<MentionCandidate> histories = List.of(
+				createPersonCandidate("김성은", "김성", personId),
+				createPersonCandidate("김성이", "김성", personId)
+		);
+
+		when(mentionCandidateRepository.findPersonMatchHistory(
+				eq(userId),
+				eq("김성"),
+				eq("김성"),
+				eq(MentionCandidateStatus.CONFIRMED)
+		)).thenReturn(histories);
+
+		Optional<UUID> result =
+				personCreationGuard.findReusablePerson(
+						userId,
+						"김성",
+						"김성"
+				);
+
+		assertEquals(
+				Optional.empty(),
+				result
+		);
+	}
+
+	@Test
+	void 입력이_애매한_조사를_거쳐야만_도달하면_이력_재사용_자체를_시도하지_않는다() {
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		/*
+		 * 과거 이력("민수와", "민수를")은 안전 조사로만 도달해 그 자체로는 안정적이다.
+		 * 하지만 이번 입력 "민수씨" 는 애매한 조사 씨를 떼야만 "민수" 가 되므로
+		 * 이력이 안정적이어도 재사용을 시도조차 하면 안 된다.
+		 */
+		List<MentionCandidate> histories = List.of(
+				createPersonCandidate("민수와", "민수", personId),
+				createPersonCandidate("민수를", "민수", personId)
+		);
+
+		when(mentionCandidateRepository.findPersonMatchHistory(
+				eq(userId),
+				eq("민수씨"),
+				eq("민수"),
+				eq(MentionCandidateStatus.CONFIRMED)
+		)).thenReturn(histories);
+
+		Optional<UUID> result =
+				personCreationGuard.findReusablePerson(
+						userId,
+						"민수씨",
+						"민수"
 				);
 
 		assertEquals(

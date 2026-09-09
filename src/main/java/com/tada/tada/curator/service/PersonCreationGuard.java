@@ -22,6 +22,7 @@ import java.util.UUID;
 public class PersonCreationGuard {
 
 	private final MentionCandidateRepository mentionCandidateRepository;
+	private final PersonNormalizer personNormalizer;
 
 	public Optional<UUID> findReusablePerson(
 			UUID userId,
@@ -94,6 +95,7 @@ public class PersonCreationGuard {
 
 		return findStableNormalizedTextMatch(
 				histories,
+				safeRawText,
 				safeNormalizedText,
 				blockedIds
 		);
@@ -147,10 +149,22 @@ public class PersonCreationGuard {
 
 	private Optional<UUID> findStableNormalizedTextMatch(
 			List<MentionCandidate> histories,
+			String rawText,
 			String normalizedText,
 			Set<UUID> blockedPersonIds
 	) {
 		if (normalizedText.isBlank()) {
+			return Optional.empty();
+		}
+
+		/*
+		 * 입력이 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 이 값에 도달했다면
+		 * 이력 재사용 자체를 시도하지 않는다. PersonMatchingService의 EXACT 판정이
+		 * safeMatchCandidates만 쓰는 것과 같은 기준을 여기서도 지킨다.
+		 */
+		if (!personNormalizer.normalize(rawText)
+				.safeMatchCandidates()
+				.contains(normalizedText)) {
 			return Optional.empty();
 		}
 
@@ -166,6 +180,18 @@ public class PersonCreationGuard {
 		for (MentionCandidate history : histories) {
 			if (!normalizedText.equals(
 					history.getNormalizedText()
+			)) {
+				continue;
+			}
+
+			/*
+			 * 과거 이력도 안전한 조사 제거만으로 이 값에 도달했을 때만 인정한다.
+			 * "김성은"은 애매한 조사를 떼야만 "김성"이 되므로 "김성" 이력으로 세지 않는다.
+			 */
+			if (!personNormalizer.normalize(
+					history.getRawText()
+			).safeMatchCandidates().contains(
+					normalizedText
 			)) {
 				continue;
 			}
