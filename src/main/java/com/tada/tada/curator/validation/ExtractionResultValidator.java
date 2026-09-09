@@ -566,7 +566,7 @@ public class ExtractionResultValidator {
 			ExtractionResult extractionResult,
 			List<String> errors
 	) {
-		Set<String> seen = new HashSet<>();
+		Set<SourceKey> seen = new HashSet<>();
 
 		for (PlaceExtraction place
 				: extractionResult.places()) {
@@ -604,16 +604,22 @@ public class ExtractionResultValidator {
 	}
 
 	private void addDuplicateError(
-			Set<String> seen,
+			Set<SourceKey> seen,
 			String entityType,
 			String rawText,
 			String normalizedText,
 			List<String> personRefs,
 			List<String> errors
 	) {
+		/*
+		 * personRefs 안에 null 원소가 있으면 validatePersonRefs 가
+		 * 이미 별도 에러를 기록한다. 그 경우 Collections.sort 가
+		 * NPE 로 터져 이 검증 전체가 죽지 않도록 여기서는 조용히 넘어간다.
+		 */
 		if (isBlank(rawText)
 				|| isBlank(normalizedText)
-				|| personRefs == null) {
+				|| personRefs == null
+				|| personRefs.contains(null)) {
 			return;
 		}
 
@@ -622,11 +628,13 @@ public class ExtractionResultValidator {
 
 		Collections.sort(sortedRefs);
 
-		String key =
-				entityType
-						+ "\u0000" + rawText
-						+ "\u0000" + normalizedText
-						+ "\u0000" + sortedRefs;
+		SourceKey key =
+				new SourceKey(
+						entityType,
+						rawText,
+						normalizedText.strip(),
+						sortedRefs
+				);
 
 		if (!seen.add(key)) {
 			errors.add(
@@ -636,6 +644,14 @@ public class ExtractionResultValidator {
 							+ rawText
 			);
 		}
+	}
+
+	private record SourceKey(
+			String entityType,
+			String rawText,
+			String normalizedText,
+			List<String> personRefs
+	) {
 	}
 
 	private void validateRawText(

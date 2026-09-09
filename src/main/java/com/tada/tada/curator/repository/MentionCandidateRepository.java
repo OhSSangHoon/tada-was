@@ -33,11 +33,20 @@ public interface MentionCandidateRepository
 			UUID diaryId
 	);
 	
+	/*
+	 * PersonCreationGuard 가 재사용 판단에 쓰는 이력 조회다.
+	 *
+	 * diary.status = ACTIVE 가 없으면 휴지통에 있는 일기의 Candidate 까지
+	 * 이력에 섞여, 이미 지운 일기에서의 우연한 표현이 지금 일기의
+	 * 인물 재사용 여부를 좌우하게 된다.
+	 * 같은 목적의 findPersonEntityStats 에는 이 필터가 있다.
+	 */
 	@Query("""
         SELECT candidate
         FROM MentionCandidate candidate, Diary diary
         WHERE candidate.diaryId = diary.id
           AND diary.userId = :userId
+          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
           AND candidate.entityType = com.tada.tada.curator.entity.MentionEntityType.PERSON
           AND candidate.status = :status
           AND candidate.matchedPersonId IS NOT NULL

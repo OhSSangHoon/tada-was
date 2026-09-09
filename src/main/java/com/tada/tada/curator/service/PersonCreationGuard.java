@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -153,7 +154,13 @@ public class PersonCreationGuard {
 			return Optional.empty();
 		}
 
-		Map<UUID, Integer> historyCounts =
+		/*
+		 * 일기 단위로 센다. 한 일기 안에서 같은 사람이 같은
+		 * normalizedText 로 여러 번 언급되면(예: "민수가... 민수는...")
+		 * Candidate 행은 여러 개지만 이력으로는 1회여야 한다.
+		 * 행 개수로 세면 말이 긴 일기 하나가 안정성 점수를 부풀린다.
+		 */
+		Map<UUID, Set<UUID>> historyDiaryIdsByPerson =
 				new HashMap<>();
 
 		for (MentionCandidate history : histories) {
@@ -176,25 +183,28 @@ public class PersonCreationGuard {
 				continue;
 			}
 
-			historyCounts.merge(
-					personId,
-					1,
-					Integer::sum
-			);
+			historyDiaryIdsByPerson
+					.computeIfAbsent(
+							personId,
+							key -> new HashSet<>()
+					)
+					.add(
+							history.getDiaryId()
+					);
 		}
 
-		if (historyCounts.isEmpty()) {
+		if (historyDiaryIdsByPerson.isEmpty()) {
 			return Optional.empty();
 		}
 
 		List<HistoryScore> rankedHistories =
-				historyCounts.entrySet()
+				historyDiaryIdsByPerson.entrySet()
 						.stream()
 						.map(
 								entry ->
 										new HistoryScore(
 												entry.getKey(),
-												entry.getValue()
+												entry.getValue().size()
 										)
 						)
 						.sorted(
@@ -220,10 +230,10 @@ public class PersonCreationGuard {
 		}
 
 		int totalCount =
-				historyCounts.values()
+				historyDiaryIdsByPerson.values()
 						.stream()
 						.mapToInt(
-								Integer::intValue
+								Set::size
 						)
 						.sum();
 
