@@ -74,7 +74,7 @@ public class PersonMatchingService {
 				findExactResult(
 						userId,
 						normalization
-								.strongMatchCandidates(),
+								.safeMatchCandidates(),
 						blockedIds
 				);
 
@@ -97,7 +97,7 @@ public class PersonMatchingService {
 		PersonMatchResult normalizedExactResult =
 				findNormalizedExactResult(
 						normalization
-								.strongMatchCandidates(),
+								.safeMatchCandidates(),
 						persons,
 						aliases,
 						blockedIds
@@ -117,30 +117,34 @@ public class PersonMatchingService {
 
 	private PersonMatchResult findExactResult(
 			UUID userId,
-			List<String> strongMatchCandidates,
+			List<String> exactMatchCandidates,
 			Set<UUID> blockedPersonIds
 	) {
 		List<MemoryPerson> persons =
 				memoryPersonRepository
 						.findAllByUserIdAndDisplayNameIn(
 								userId,
-								strongMatchCandidates
+								exactMatchCandidates
 						);
 
 		List<PersonAlias> aliases =
 				personAliasRepository
 						.findAllByOwnerUserIdAndNormalizedTextIn(
 								userId,
-								strongMatchCandidates
+								exactMatchCandidates
 						);
 
 		/*
-		 * strongMatchCandidates는
+		 * exactMatchCandidates(safeMatchCandidates)는
 		 *
 		 * 1. 원문
-		 * 2. 조사 제거 결과
+		 * 2. 안전 조사 제거 결과
 		 *
-		 * 순서로 들어온다.
+		 * 순서로 들어온다. 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만
+		 * 나오는 형태는 여기 들어오지 않는다. 그런 형태까지 EXACT 판정에
+		 * 쓰면 "김성은" 과 "김성" 처럼 실제로 다른 사람이 자동으로
+		 * 합쳐질 수 있다. (그 형태는 findSimilarityResult 의
+		 * addAmbiguousCandidateScores 가 점수로만 반영한다)
 		 *
 		 * 후보를 합쳐서 한 번에 판단하면
 		 * 원문 exact가 존재하는데 조사 제거 결과와 충돌했을 때
@@ -150,7 +154,7 @@ public class PersonMatchingService {
 		 * 단계별로 exact를 판단한다.
 		 */
 		for (String candidate
-				: strongMatchCandidates) {
+				: exactMatchCandidates) {
 
 			Set<UUID> matchedPersonIds =
 					new LinkedHashSet<>();
@@ -218,9 +222,15 @@ public class PersonMatchingService {
 	 *
 	 * 원문 exact 와 조사 제거 exact 가 모두 실패한 뒤에만 시도하므로
 	 * 단계별 우선순위는 그대로 유지된다.
+	 *
+	 * 여기서도 exactMatchCandidates(safeMatchCandidates)만 쓴다.
+	 * 기존 인물 이름을 다시 정규화할 때도 안전 조사까지만 떼고
+	 * (addNormalizedName -> safeMatchCandidates), 애매한 조사까지
+	 * 떼어 버리면 "김성은" 으로 저장된 사람이 입력 "김성" 과 EXACT 로
+	 * 잘못 연결된다.
 	 */
 	private PersonMatchResult findNormalizedExactResult(
-			List<String> strongMatchCandidates,
+			List<String> exactMatchCandidates,
 			List<MemoryPerson> persons,
 			List<PersonAlias> aliases,
 			Set<UUID> blockedPersonIds
@@ -256,7 +266,7 @@ public class PersonMatchingService {
 			);
 		}
 
-		for (String candidate : strongMatchCandidates) {
+		for (String candidate : exactMatchCandidates) {
 			Set<UUID> matchedPersonIds =
 					new LinkedHashSet<>();
 
@@ -299,21 +309,32 @@ public class PersonMatchingService {
 			return;
 		}
 
-		String normalizedName =
+		/*
+		 * 여기서도 safeMatchCandidates 만 쓴다.
+		 *
+		 * 기존 이름을 다시 normalize() 하면서 애매한 조사까지 떼면
+		 * "김성은" 으로 저장된 이름이 "김성" 으로 수렴해 입력 "김성" 과
+		 * EXACT 로 잘못 합쳐진다. displayName 은 생성 시점에 이미
+		 * 안전 조사까지만 뗀 값이라 보통은 결과가 1개뿐이지만,
+		 * 방어적으로 전체 안전 사슬을 반영한다.
+		 */
+		List<String> safeNames =
 				personNormalizer
 						.normalize(name)
-						.normalizedText();
+						.safeMatchCandidates();
 
-		if (normalizedName.isBlank()) {
-			return;
+		for (String safeName : safeNames) {
+			if (safeName.isBlank()) {
+				continue;
+			}
+
+			normalizedNamesByPerson
+					.computeIfAbsent(
+							personId,
+							key -> new LinkedHashSet<>()
+					)
+					.add(safeName);
 		}
-
-		normalizedNamesByPerson
-				.computeIfAbsent(
-						personId,
-						key -> new LinkedHashSet<>()
-				)
-				.add(normalizedName);
 	}
 
 	private PersonMatchResult findSimilarityResult(
@@ -326,6 +347,14 @@ public class PersonMatchingService {
 				new HashMap<>();
 
 		addWeakCandidateScores(
+				normalization,
+				persons,
+				aliases,
+				blockedPersonIds,
+				scores
+		);
+
+		addAmbiguousCandidateScores(
 				normalization,
 				persons,
 				aliases,
@@ -435,6 +464,83 @@ public class PersonMatchingService {
 
 			if (matchesSurnameVariant(
 					normalization,
+					alias.getNormalizedText()
+			)) {
+				matchedPersonIds.add(
+						alias.getPersonId()
+				);
+			}
+		}
+
+		for (UUID personId : matchedPersonIds) {
+			addScore(
+					scores,
+					personId,
+					PersonMatchingPolicy.STRONG_SCORE
+			);
+		}
+	}
+
+	/*
+	 * strongMatchCandidates 중 safeMatchCandidates 에는 없는 형태,
+	 * 즉 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 나오는 형태를
+	 * 점수로만 반영한다.
+	 *
+	 *   "김성은" 의 애매한 후보 "김성" 이 기존 인물 "김성" 과 문자열이
+	 *   같아도 그것만으로 EXACT 처리하지 않는다. "김성은" 과 "김성" 은
+	 *   실제로 다른 사람일 수 있기 때문이다. (findExactResult /
+	 *   findNormalizedExactResult 는 safeMatchCandidates 만 쓴다)
+	 *
+	 * 대신 다른 근거(성 생략 변형, edit distance)와 합쳐질 때만
+	 * SIMILAR 임계값을 넘도록 점수로만 남겨 둔다.
+	 */
+	private void addAmbiguousCandidateScores(
+			PersonNormalization normalization,
+			List<MemoryPerson> persons,
+			List<PersonAlias> aliases,
+			Set<UUID> blockedPersonIds,
+			Map<UUID, Integer> scores
+	) {
+		Set<String> ambiguousOnlyCandidates =
+				new LinkedHashSet<>(
+						normalization.strongMatchCandidates()
+				);
+
+		ambiguousOnlyCandidates.removeAll(
+				normalization.safeMatchCandidates()
+		);
+
+		if (ambiguousOnlyCandidates.isEmpty()) {
+			return;
+		}
+
+		Set<UUID> matchedPersonIds =
+				new LinkedHashSet<>();
+
+		for (MemoryPerson person : persons) {
+			if (blockedPersonIds.contains(
+					person.getId()
+			)) {
+				continue;
+			}
+
+			if (ambiguousOnlyCandidates.contains(
+					person.getDisplayName()
+			)) {
+				matchedPersonIds.add(
+						person.getId()
+				);
+			}
+		}
+
+		for (PersonAlias alias : aliases) {
+			if (blockedPersonIds.contains(
+					alias.getPersonId()
+			)) {
+				continue;
+			}
+
+			if (ambiguousOnlyCandidates.contains(
 					alias.getNormalizedText()
 			)) {
 				matchedPersonIds.add(

@@ -71,8 +71,14 @@ public class PersonNormalizer {
 			return emptyNormalization();
 		}
 
+		MatchCandidates matchCandidates =
+				createMatchCandidates(cleanedText);
+
 		Set<String> strongMatchCandidates =
-				createStrongMatchCandidates(cleanedText);
+				matchCandidates.strong();
+
+		Set<String> safeMatchCandidates =
+				matchCandidates.safe();
 
 		String normalizedText =
 				strongMatchCandidates.stream()
@@ -92,6 +98,7 @@ public class PersonNormalizer {
 				normalizedText,
 				displayNameCandidate,
 				List.copyOf(strongMatchCandidates),
+				List.copyOf(safeMatchCandidates),
 				List.copyOf(weakMatchCandidates)
 		);
 	}
@@ -108,6 +115,7 @@ public class PersonNormalizer {
 		return new PersonNormalization(
 				"",
 				"",
+				List.of(),
 				List.of(),
 				List.of()
 		);
@@ -142,14 +150,41 @@ public class PersonNormalizer {
 				.trim();
 	}
 
-	private Set<String> createStrongMatchCandidates(
+	/*
+	 * 매칭 후보 두 겹을 함께 만든다.
+	 *
+	 *   strong : 안전 조사 -> 애매한 조사 순으로 반복해서 뗀 전체 사슬.
+	 *            normalizedText 와 저장값 계열은 이 결과를 그대로 쓴다.
+	 *   safe   : 그 사슬 중 안전 조사 제거만으로 설명되는 앞부분만 남긴
+	 *            부분집합.
+	 *
+	 * "김성은" 처럼 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 도달하는
+	 * 형태는 strong 에는 남기되 safe 에서는 뺀다.
+	 *
+	 * 한 번이라도 애매한 조사를 거치면 그 뒤로 이어지는 모든 형태를
+	 * safe 에서 제외한다(stillSafe). 애매한 조사로 이미 다른 해석에
+	 * 들어선 뒤에 우연히 안전 조사 모양이 다시 나타나도, 그 형태는
+	 * 애매한 전제 위에 서 있으므로 EXACT 매칭까지 신뢰할 수는 없다.
+	 *
+	 * safe 는 PersonMatchingService 의 EXACT 판정에만 쓰고, strong 에서
+	 * safe 를 뺀 나머지는 유사도 점수로만 반영한다. 그래야 "김성은/김성",
+	 * "가을/가을이" 처럼 서로 다를 수 있는 사람이 애매한 조사 하나 때문에
+	 * 자동으로 합쳐지는 일을 막을 수 있다.
+	 */
+	private MatchCandidates createMatchCandidates(
 			String cleanedText
 	) {
-		Set<String> candidates =
+		Set<String> strongCandidates =
+				new LinkedHashSet<>();
+
+		Set<String> safeCandidates =
 				new LinkedHashSet<>();
 
 		String candidate = cleanedText;
-		candidates.add(candidate);
+		strongCandidates.add(candidate);
+		safeCandidates.add(candidate);
+
+		boolean stillSafe = true;
 
 		while (true) {
 			String next =
@@ -159,11 +194,32 @@ public class PersonNormalizer {
 				break;
 			}
 
-			candidates.add(next);
+			strongCandidates.add(next);
+
+			if (stillSafe) {
+				String safeNext =
+						removeSafeParticleOnce(candidate);
+
+				if (safeNext.equals(next)) {
+					safeCandidates.add(next);
+				} else {
+					stillSafe = false;
+				}
+			}
+
 			candidate = next;
 		}
 
-		return candidates;
+		return new MatchCandidates(
+				strongCandidates,
+				safeCandidates
+		);
+	}
+
+	private record MatchCandidates(
+			Set<String> strong,
+			Set<String> safe
+	) {
 	}
 
 	/*
