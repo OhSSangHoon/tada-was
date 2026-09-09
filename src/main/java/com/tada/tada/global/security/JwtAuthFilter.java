@@ -6,13 +6,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
 
-@Component
+// Spring Security 체인 전용 필터라 스프링 빈(@Component)으로 등록하지 않는다.
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 	
@@ -37,8 +36,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 		// "Bearer " 뒤의 실제 토큰만 추출
 		String token = authorization.substring(7);
 		
-		// JWT가 유효한 경우
-		if (jwtUtil.validateToken(token)) {
+		// 유효한 Access Token인 경우에만 인증 처리
+		if (jwtUtil.isAccessToken(token)) {
 			UUID userId = jwtUtil.getUserId(token);
 			
 			// 현재 요청의 인증 정보 저장
