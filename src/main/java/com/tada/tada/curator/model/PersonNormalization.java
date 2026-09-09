@@ -15,9 +15,7 @@ public record PersonNormalization(
 				: normalizedText;
 
 		/*
-		 * 신규 MemoryPerson 의 표시 이름 후보다.
-		 *
-		 * 매칭용 normalizedText 와 달리
+		 * 신규 MemoryPerson 표시 이름 후보. normalizedText와 달리
 		 * 이름 끝 글자일 수 있는 애매한 접미사를 보존한다.
 		 */
 		displayNameCandidate =
@@ -31,13 +29,10 @@ public record PersonNormalization(
 				: List.copyOf(strongMatchCandidates);
 
 		/*
-		 * strongMatchCandidates 중 안전 조사 제거만으로 도달한 형태.
-		 * 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 나오는 형태는 뺀다.
-		 *
-		 * PersonMatchingService 의 EXACT 판정(findExactResult /
-		 * findNormalizedExactResult)은 이 후보만 쓴다. "김성은" 과
-		 * "김성" 처럼 실제로 다른 사람일 수 있는 형태를 EXACT 로
-		 * 자동 연결하지 않기 위해서다.
+		 * strongMatchCandidates 중 안전 조사 제거만으로 도달한 부분집합
+		 * (애매한 조사 은/이/도/랑/님/씨/아 제거형은 제외).
+		 * PersonMatchingService의 EXACT 판정은 이것만 써서 "김성은"과 "김성" 같은
+		 * 서로 다를 수 있는 이름이 자동으로 합쳐지지 않게 한다.
 		 */
 		safeMatchCandidates = safeMatchCandidates == null
 				? List.of()

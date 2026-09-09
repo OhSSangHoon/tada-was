@@ -23,23 +23,16 @@ public interface MentionCandidateRepository
 	);
 
 	/*
-	 * Diary 영구삭제 때 Diary 도메인이 CuratorCleanupService 를 통해 호출한다.
-	 *
-	 * mention_candidate_person_ref 는 두 FK 가 ON DELETE CASCADE 이므로
-	 * 여기서 Candidate 를 지우면 DB 가 함께 정리한다.
-	 * 같은 Relation 을 서비스에서 다시 지우지 않는다.
+	 * Diary 영구삭제 시 호출한다. mention_candidate_person_ref는 FK ON DELETE CASCADE로
+	 * 함께 정리되므로 서비스에서 중복 삭제하지 않는다.
 	 */
 	void deleteByDiaryId(
 			UUID diaryId
 	);
 	
 	/*
-	 * PersonCreationGuard 가 재사용 판단에 쓰는 이력 조회다.
-	 *
-	 * diary.status = ACTIVE 가 없으면 휴지통에 있는 일기의 Candidate 까지
-	 * 이력에 섞여, 이미 지운 일기에서의 우연한 표현이 지금 일기의
-	 * 인물 재사용 여부를 좌우하게 된다.
-	 * 같은 목적의 findPersonEntityStats 에는 이 필터가 있다.
+	 * PersonCreationGuard 재사용 판단용 이력 조회. diary.status=ACTIVE 필터가 없으면
+	 * 휴지통 일기의 우연한 표현까지 이력에 섞여 재사용 여부를 좌우하게 된다.
 	 */
 	@Query("""
         SELECT candidate
@@ -64,20 +57,9 @@ public interface MentionCandidateRepository
 	);
 
 	/*
-	 * 그 사람과 함께한 장소·활동 집계.
-	 *
-	 * CONFIRMED PERSON Candidate -> mention_candidate_person_ref -> source Candidate
-	 * 경로로만 간다. `그 사람이 나온 일기의 모든 PLACE/ACTIVITY` 를 세면
-	 * 혼자 한 식사나 산책까지 함께한 것으로 잡힌다.
-	 *
-	 * COUNT(DISTINCT source.diaryId) 로 센다. 한 일기에 같은 표현이 여러 번
-	 * 나와도 1회이고, 한 source 가 같은 사람의 PERSON Candidate 두 개에
-	 * 연결돼 행이 늘어나도 결과가 부풀지 않는다.
-	 *
-	 * 정렬을 normalizedText 까지 끊는다. 같은 일기에 장소가 두 곳 나오면
-	 * diaryCount 와 lastEntryDate 가 둘 다 같아져 순서가 비결정적이 된다.
-	 *
-	 * Top3, 타임라인 카드 키워드, 추억 그룹이 모두 이 결과를 쓴다.
+	 * 그 사람과 함께한 장소·활동 집계. CONFIRMED PERSON -> ref -> source 경로만 써서
+	 * 혼자 한 활동까지 포함되는 것을 막는다. COUNT(DISTINCT source.diaryId)로 일기당 1회로 세고,
+	 * normalizedText까지 정렬해 동률 시 비결정성을 없앤다. Top3·타임라인·추억 그룹이 공용으로 쓴다.
 	 */
 	@Query("""
 			SELECT

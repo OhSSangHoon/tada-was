@@ -135,23 +135,11 @@ public class PersonMatchingService {
 						);
 
 		/*
-		 * exactMatchCandidates(safeMatchCandidates)는
-		 *
-		 * 1. 원문
-		 * 2. 안전 조사 제거 결과
-		 *
-		 * 순서로 들어온다. 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만
-		 * 나오는 형태는 여기 들어오지 않는다. 그런 형태까지 EXACT 판정에
-		 * 쓰면 "김성은" 과 "김성" 처럼 실제로 다른 사람이 자동으로
-		 * 합쳐질 수 있다. (그 형태는 findSimilarityResult 의
-		 * addAmbiguousCandidateScores 가 점수로만 반영한다)
-		 *
-		 * 후보를 합쳐서 한 번에 판단하면
-		 * 원문 exact가 존재하는데 조사 제거 결과와 충돌했을 때
-		 * AMBIGUOUS가 되어 버린다.
-		 *
-		 * 따라서 후보 우선순위를 유지하면서
-		 * 단계별로 exact를 판단한다.
+		 * exactMatchCandidates(safeMatchCandidates)는 [원문, 안전 조사 제거 결과] 순서로 들어오며
+		 * 애매한 조사 제거형은 포함하지 않는다 (포함하면 "김성은"과 "김성"처럼 다른 사람이 자동으로
+		 * 합쳐질 수 있다 — 그 형태는 addAmbiguousCandidateScores가 점수로만 반영한다).
+		 * 후보를 합쳐 한 번에 판단하면 원문 exact가 있는데 조사 제거 결과와 충돌해 AMBIGUOUS가
+		 * 되어 버리므로, 우선순위를 유지하며 단계별로 판단한다.
 		 */
 		for (String candidate
 				: exactMatchCandidates) {
@@ -208,25 +196,11 @@ public class PersonMatchingService {
 	}
 
 	/*
-	 * displayName 자체는 다르지만
-	 * 정규화하면 같은 이름으로 수렴하는 기존 인물을 찾는다.
-	 *
-	 * 신규 인물의 displayName 은 이름 훼손을 막기 위해
-	 * 애매한 접미사를 보존한다. ("김성은", "가을이")
-	 *
-	 * 그래서 같은 사람이 나중에 다른 조사로 등장하면
-	 * displayName 직접 비교만으로는 다시 연결되지 않는다.
-	 *
-	 * memory_person 에 정규화 컬럼을 추가하지 않고
-	 * 조회 시점에 정규화해 비교한다.
-	 *
-	 * 원문 exact 와 조사 제거 exact 가 모두 실패한 뒤에만 시도하므로
-	 * 단계별 우선순위는 그대로 유지된다.
-	 *
-	 * 여기서도 exactMatchCandidates(safeMatchCandidates)만 쓴다.
-	 * 기존 인물 이름을 다시 정규화할 때도 안전 조사까지만 떼고
-	 * (addNormalizedName -> safeMatchCandidates), 애매한 조사까지
-	 * 떼어 버리면 "김성은" 으로 저장된 사람이 입력 "김성" 과 EXACT 로
+	 * displayName은 다르지만 정규화하면 같은 이름으로 수렴하는 기존 인물을 찾는다.
+	 * 신규 인물의 displayName은 애매한 접미사를 보존하므로("김성은","가을이") 나중에 다른
+	 * 조사로 등장하면 직접 비교로는 안 잡힌다. memory_person에 정규화 컬럼을 두지 않고
+	 * 조회 시점에 정규화해 비교한다 (원문·조사제거 exact가 모두 실패한 뒤에만 시도).
+	 * 여기서도 safeMatchCandidates만 쓴다 — 애매한 조사까지 떼면 "김성은"이 입력 "김성"과
 	 * 잘못 연결된다.
 	 */
 	private PersonMatchResult findNormalizedExactResult(
@@ -310,13 +284,9 @@ public class PersonMatchingService {
 		}
 
 		/*
-		 * 여기서도 safeMatchCandidates 만 쓴다.
-		 *
-		 * 기존 이름을 다시 normalize() 하면서 애매한 조사까지 떼면
-		 * "김성은" 으로 저장된 이름이 "김성" 으로 수렴해 입력 "김성" 과
-		 * EXACT 로 잘못 합쳐진다. displayName 은 생성 시점에 이미
-		 * 안전 조사까지만 뗀 값이라 보통은 결과가 1개뿐이지만,
-		 * 방어적으로 전체 안전 사슬을 반영한다.
+		 * 여기도 safeMatchCandidates만 쓴다 — 애매한 조사까지 떼면 "김성은"이 "김성"과
+		 * 잘못 합쳐진다. displayName은 보통 이미 안전 조사까지만 뗀 값이라 결과는 대개
+		 * 1개뿐이지만 방어적으로 전체 안전 사슬을 반영한다.
 		 */
 		List<String> safeNames =
 				personNormalizer
@@ -404,11 +374,9 @@ public class PersonMatchingService {
 		}
 
 		/*
-		 * 후보 목록을 자르지 않는다.
-		 *
-		 * PersonResolverService 가 CreationGuard 의 안정 이력이
-		 * 이 목록에 있는지로 재사용 여부를 판단하므로,
-		 * 상위 N개만 남기면 근거 있는 이력이 조용히 버려진다.
+		 * 후보 목록을 자르지 않는다 — PersonResolverService가 CreationGuard의 안정 이력이
+		 * 이 목록에 있는지로 재사용 여부를 판단하므로, 상위 N개만 남기면 근거 있는 이력이
+		 * 조용히 버려진다.
 		 */
 		return PersonMatchResult.ambiguous(
 				rankedCandidates.stream()
@@ -420,13 +388,8 @@ public class PersonMatchingService {
 	}
 
 	/*
-	 * 성 포함/생략 변형을 점수로 반영한다. (명세 9.3 의 STRONG 근거)
-	 *
-	 *   입력 "김민혁" + 기존 인물 "민혁"
-	 *   입력 "민혁"   + 기존 인물 "김민혁"
-	 *
-	 * 단독으로는 SIMILAR 임계값에 못 미치므로 자동 연결되지 않고,
-	 * 다른 근거와 결합할 때만 SIMILAR 이 된다.
+	 * 성 포함/생략 변형을 점수로 반영한다 (명세 9.3 STRONG 근거). 예: 입력 "김민혁" ↔ 기존 "민혁" (양방향).
+	 * 단독으로는 SIMILAR 임계값 미달 — 다른 근거와 결합할 때만 SIMILAR이 된다.
 	 */
 	private void addWeakCandidateScores(
 			PersonNormalization normalization,
@@ -482,17 +445,9 @@ public class PersonMatchingService {
 	}
 
 	/*
-	 * strongMatchCandidates 중 safeMatchCandidates 에는 없는 형태,
-	 * 즉 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 나오는 형태를
-	 * 점수로만 반영한다.
-	 *
-	 *   "김성은" 의 애매한 후보 "김성" 이 기존 인물 "김성" 과 문자열이
-	 *   같아도 그것만으로 EXACT 처리하지 않는다. "김성은" 과 "김성" 은
-	 *   실제로 다른 사람일 수 있기 때문이다. (findExactResult /
-	 *   findNormalizedExactResult 는 safeMatchCandidates 만 쓴다)
-	 *
-	 * 대신 다른 근거(성 생략 변형, edit distance)와 합쳐질 때만
-	 * SIMILAR 임계값을 넘도록 점수로만 남겨 둔다.
+	 * strongMatchCandidates 중 safeMatchCandidates에 없는 형태(애매한 조사 제거형)를 점수로만 반영한다.
+	 * "김성은"의 애매한 후보 "김성"이 기존 "김성"과 같아도 EXACT 처리하지 않는다 — 다른 근거와
+	 * 합쳐질 때만 SIMILAR 임계값을 넘긴다.
 	 */
 	private void addAmbiguousCandidateScores(
 			PersonNormalization normalization,
@@ -577,8 +532,7 @@ public class PersonMatchingService {
 		}
 
 		/*
-		 * 입력에서 성을 뗀 형태가 기존 이름과 같은 경우.
-		 * 예: 입력 "김민혁" -> "민혁", 기존 인물 "민혁"
+		 * 입력에서 성을 뗀 형태가 기존 이름과 같은 경우. 예: 입력 "김민혁" -> "민혁", 기존 "민혁"
 		 */
 		if (normalization.weakMatchCandidates()
 				.contains(normalizedTarget)) {
@@ -587,8 +541,7 @@ public class PersonMatchingService {
 		}
 
 		/*
-		 * 기존 이름에서 성을 뗀 형태가 입력과 같은 경우.
-		 * 예: 입력 "민혁", 기존 인물 "김민혁" -> "민혁"
+		 * 기존 이름에서 성을 뗀 형태가 입력과 같은 경우. 예: 입력 "민혁", 기존 "김민혁" -> "민혁"
 		 */
 		String targetWithoutSurname =
 				personNormalizer.removeSurname(

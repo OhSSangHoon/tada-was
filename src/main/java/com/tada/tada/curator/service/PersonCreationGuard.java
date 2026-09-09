@@ -158,9 +158,8 @@ public class PersonCreationGuard {
 		}
 
 		/*
-		 * 입력이 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 이 값에 도달했다면
-		 * 이력 재사용 자체를 시도하지 않는다. PersonMatchingService의 EXACT 판정이
-		 * safeMatchCandidates만 쓰는 것과 같은 기준을 여기서도 지킨다.
+		 * 입력이 애매한 조사(은/이/도/랑/님/씨/아)를 떼야만 이 값에 도달했다면 재사용을
+		 * 시도하지 않는다. PersonMatchingService EXACT 판정과 동일 기준: safeMatchCandidates만 신뢰.
 		 */
 		if (!personNormalizer.normalize(rawText)
 				.safeMatchCandidates()
@@ -169,10 +168,8 @@ public class PersonCreationGuard {
 		}
 
 		/*
-		 * 일기 단위로 센다. 한 일기 안에서 같은 사람이 같은
-		 * normalizedText 로 여러 번 언급되면(예: "민수가... 민수는...")
-		 * Candidate 행은 여러 개지만 이력으로는 1회여야 한다.
-		 * 행 개수로 세면 말이 긴 일기 하나가 안정성 점수를 부풀린다.
+		 * 일기 단위로 센다 — 한 일기 안에서 같은 표현이 여러 번 나와도 이력 1회로 세야
+		 * 말이 긴 일기 하나가 안정성 점수를 부풀리지 않는다.
 		 */
 		Map<UUID, Set<UUID>> historyDiaryIdsByPerson =
 				new HashMap<>();
@@ -185,8 +182,8 @@ public class PersonCreationGuard {
 			}
 
 			/*
-			 * 과거 이력도 안전한 조사 제거만으로 이 값에 도달했을 때만 인정한다.
-			 * "김성은"은 애매한 조사를 떼야만 "김성"이 되므로 "김성" 이력으로 세지 않는다.
+			 * 과거 이력도 안전한 조사 제거로만 도달했을 때만 인정한다 —
+			 * "김성은"은 애매한 조사를 떼야만 "김성"이 되므로 이력으로 세지 않는다.
 			 */
 			if (!personNormalizer.normalize(
 					history.getRawText()

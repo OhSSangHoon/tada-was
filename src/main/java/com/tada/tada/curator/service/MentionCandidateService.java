@@ -136,11 +136,8 @@ public class MentionCandidateService {
 		}
 
 		/*
-		 * PLACE/ACTIVITY 의 normalizedText 는 AI 의 의미 정규화 결과다.
-		 *
-		 * 앞뒤 공백이 남으면 "카페" 와 " 카페 " 가 다른 값이 되어
-		 * 월간 활동·장소 통계 그룹이 갈린다. (명세 14.3)
-		 * 형식만 정리하는 것이므로 의미를 바꾸지 않는다. (명세 5.2)
+		 * PLACE/ACTIVITY normalizedText 앞뒤 공백 제거 — 공백 차이로 통계 그룹이
+		 * 갈리는 것을 방지한다 (명세 14.3). 의미는 바꾸지 않는다 (명세 5.2).
 		 */
 		String cleanedNormalizedText =
 				normalizedText.strip();

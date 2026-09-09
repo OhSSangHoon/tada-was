@@ -30,16 +30,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-/*
- * 사람 목록과 사람 상세의 조회 전용 서비스.
- * 조회는 항상 personId 와 현재 사용자 id 를 함께 쓴다.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PersonQueryService {
 
-	/* 자주 나온 장소 / 자주 한 일은 각각 최대 3개 */
 	private static final int TOP_ENTITY_LIMIT = 3;
 
 	/* 없는 사람과 남의 사람을 같은 응답으로 처리한다. 403 은 존재 여부를 노출한다. */
@@ -54,13 +49,7 @@ public class PersonQueryService {
 	private final DiaryPersonRepository diaryPersonRepository;
 	private final MentionCandidateRepository mentionCandidateRepository;
 
-	/*
-	 * 홈 사람 목록.
-	 *
-	 * 목록 / Sticker / alias 를 각각 한 번씩만 읽는다.
-	 * 사람 수와 무관하게 쿼리는 항상 3번이다.
-	 * 빈 목록은 404 가 아니라 200 + [] 다.
-	 */
+	/* 빈 목록은 404가 아니라 200+[]. */
 	public List<PersonSummaryResponse> getPersonList(
 			UUID userId
 	) {
@@ -125,8 +114,8 @@ public class PersonQueryService {
 	}
 
 	/*
-	 * 사람 상세의 헤더 + 통계 + 한눈에 보기.
-	 * 기록 수와 최근 기록일은 PersonAggregate 캐시를 읽고, 처음 기록일만 계산한다.
+	 * 상세 헤더+통계+한눈에 보기 — 기록 수·최근 기록일은 PersonAggregate 캐시를 읽고,
+	 * 처음 기록일만 계산한다.
 	 */
 	public PersonDetailResponse getPersonDetail(
 			UUID userId,
@@ -208,8 +197,7 @@ public class PersonQueryService {
 	}
 
 	/*
-	 * 이미 정렬된 집계에서 한 종류만 골라 앞에서 자른다.
-	 * 정렬은 쿼리에서 끝나 있으므로 여기서 다시 정렬하지 않는다.
+	 * 이미 정렬된 집계에서 종류별로 앞부분만 자른다 — 정렬은 쿼리에서 끝났으므로 다시 정렬하지 않는다.
 	 */
 	private List<PersonEntityStatResponse> topOf(
 			List<PersonEntityStat> stats,
@@ -264,8 +252,7 @@ public class PersonQueryService {
 	}
 
 	/*
-	 * alias 순서를 이름순으로 고정한다.
-	 * 클라이언트 필터는 순서를 쓰지 않지만 응답이 호출마다 달라지면 테스트가 흔들린다.
+	 * alias 순서를 이름순으로 고정한다 — 클라이언트는 순서를 안 쓰지만 응답이 매번 달라지면 테스트가 흔들린다.
 	 */
 	private Map<UUID, List<String>> loadAliases(
 			UUID userId,

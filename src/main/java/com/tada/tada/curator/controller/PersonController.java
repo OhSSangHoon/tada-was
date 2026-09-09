@@ -22,8 +22,7 @@ public class PersonController {
 	private final PersonQueryService personQueryService;
 
 	/*
-	 * 홈 사람 목록.
-	 * 검색 API 는 두지 않는다. 이 응답의 displayName + aliases 로 클라이언트가 필터한다.
+	 * 검색 API 없음 — displayName + aliases 로 클라이언트가 필터한다.
 	 */
 	@GetMapping
 	public ApiResponse<List<PersonSummaryResponse>> getPersonList(
@@ -37,10 +36,6 @@ public class PersonController {
 		return ApiResponse.success(response);
 	}
 
-	/*
-	 * 사람 상세의 헤더 + 통계 + 한눈에 보기.
-	 * 없는 사람과 남의 사람은 모두 404 다.
-	 */
 	@GetMapping("/{id}")
 	public ApiResponse<PersonDetailResponse> getPersonDetail(
 			@PathVariable UUID id,
