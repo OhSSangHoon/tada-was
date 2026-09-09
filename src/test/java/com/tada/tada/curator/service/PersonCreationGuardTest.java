@@ -42,7 +42,37 @@ class PersonCreationGuardTest {
 	}
 
 	@Test
-	void 동일_rawText가_한_인물에게만_연결된_이력이_있으면_1회부터_재사용한다() {
+	void 동일_rawText가_한_인물에게만_연결된_이력이_2건_이상이면_재사용한다() {
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		List<MentionCandidate> histories = List.of(
+				createPersonCandidate("민혁상", "민혁상", personId),
+				createPersonCandidate("민혁상", "민혁상", personId)
+		);
+
+		when(mentionCandidateRepository.findPersonMatchHistory(
+				eq(userId),
+				eq("민혁상"),
+				eq("민혁상"),
+				eq(MentionCandidateStatus.CONFIRMED)
+		)).thenReturn(histories);
+
+		Optional<UUID> result =
+				personCreationGuard.findReusablePerson(
+						userId,
+						"민혁상",
+						"민혁상"
+				);
+
+		assertEquals(
+				Optional.of(personId),
+				result
+		);
+	}
+
+	@Test
+	void 동일_rawText_이력이_1건뿐이면_재사용하지_않는다() {
 		UUID userId = UUID.randomUUID();
 		UUID personId = UUID.randomUUID();
 
@@ -67,7 +97,52 @@ class PersonCreationGuardTest {
 				);
 
 		assertEquals(
-				Optional.of(personId),
+				Optional.empty(),
+				result
+		);
+	}
+
+	@Test
+	void 동일_rawText가_한_일기_안에서_여러_번_나와도_이력_1회로_센다() {
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+
+		List<MentionCandidate> histories = List.of(
+				MentionCandidate.create(
+						diaryId,
+						"민혁상",
+						"민혁상",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						personId
+				),
+				MentionCandidate.create(
+						diaryId,
+						"민혁상",
+						"민혁상",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						personId
+				)
+		);
+
+		when(mentionCandidateRepository.findPersonMatchHistory(
+				eq(userId),
+				eq("민혁상"),
+				eq("민혁상"),
+				eq(MentionCandidateStatus.CONFIRMED)
+		)).thenReturn(histories);
+
+		Optional<UUID> result =
+				personCreationGuard.findReusablePerson(
+						userId,
+						"민혁상",
+						"민혁상"
+				);
+
+		assertEquals(
+				Optional.empty(),
 				result
 		);
 	}
@@ -367,6 +442,11 @@ class PersonCreationGuardTest {
 						"민수형",
 						"민수형",
 						blockedPersonId
+				),
+				createPersonCandidate(
+						"민수형",
+						"민수형",
+						reusablePersonId
 				),
 				createPersonCandidate(
 						"민수형",

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -110,8 +109,8 @@ public class PersonCreationGuard {
 			return Optional.empty();
 		}
 
-		Set<UUID> matchedPersonIds =
-				new LinkedHashSet<>();
+		Map<UUID, Set<UUID>> diaryIdsByPerson =
+				new HashMap<>();
 
 		for (MentionCandidate history : histories) {
 			if (!rawText.equals(
@@ -133,17 +132,36 @@ public class PersonCreationGuard {
 				continue;
 			}
 
-			matchedPersonIds.add(
-					personId
-			);
+			diaryIdsByPerson
+					.computeIfAbsent(
+							personId,
+							key -> new HashSet<>()
+					)
+					.add(
+							history.getDiaryId()
+					);
 		}
 
-		if (matchedPersonIds.size() != 1) {
+		if (diaryIdsByPerson.size() != 1) {
+			return Optional.empty();
+		}
+
+		Map.Entry<UUID, Set<UUID>> onlyMatch =
+				diaryIdsByPerson.entrySet()
+						.iterator()
+						.next();
+
+		/*
+		 * 이력 1건만으로 즉시 재사용하지 않는다 — 잘못 확정된 이력 하나가
+		 * 그대로 고착되는 것을 막는다 (normalizedText 경로와 동일 원칙).
+		 */
+		if (onlyMatch.getValue().size()
+				< PersonMatchingPolicy.RAW_TEXT_HISTORY_MIN_COUNT) {
 			return Optional.empty();
 		}
 
 		return Optional.of(
-				matchedPersonIds.iterator().next()
+				onlyMatch.getKey()
 		);
 	}
 

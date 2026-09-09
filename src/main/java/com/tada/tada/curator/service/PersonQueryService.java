@@ -49,7 +49,6 @@ public class PersonQueryService {
 	private final DiaryPersonRepository diaryPersonRepository;
 	private final MentionCandidateRepository mentionCandidateRepository;
 
-	/* 빈 목록은 404가 아니라 200+[]. */
 	public List<PersonSummaryResponse> getPersonList(
 			UUID userId
 	) {
@@ -196,9 +195,6 @@ public class PersonQueryService {
 		);
 	}
 
-	/*
-	 * 이미 정렬된 집계에서 종류별로 앞부분만 자른다 — 정렬은 쿼리에서 끝났으므로 다시 정렬하지 않는다.
-	 */
 	private List<PersonEntityStatResponse> topOf(
 			List<PersonEntityStat> stats,
 			MentionEntityType entityType

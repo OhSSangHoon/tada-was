@@ -12,9 +12,6 @@ import java.util.Set;
 public class PersonNormalizer {
 
 	/*
-	 * 인구 기준 상위 성씨. "가/사/라" 등 이름 첫 글자로 흔한 성은 오탐 방지로 제외한다.
-	 */
-	/*
 	 * 조사를 떼면 한 글자만 남는 표현들. 기본 규칙은 "남는 글자 2자 이상일 때만 조사 제거"
 	 * (예: "가을→가" 훼손 방지). 한 글자로 쓰이는 인물 지칭·대명사는 닫힌 집합이라 예외로 허용한다.
 	 *   형/딸/쌤/샘: 실제 인물 지칭 (조사별로 인물이 갈리는 것 방지)
@@ -30,6 +27,9 @@ public class PersonNormalizer {
 
 	private static final int MIN_BASE_LENGTH_AFTER_PARTICLE = 2;
 
+	/*
+	 * 인구 기준 상위 성씨. "가/사/라" 등 이름 첫 글자로 흔한 성은 오탐 방지로 제외한다.
+	 */
 	private static final Set<String> COMMON_SURNAMES =
 			Set.of(
 					"김", "이", "박", "최", "정",
@@ -119,12 +119,9 @@ public class PersonNormalizer {
 		);
 
 		/*
-		 * 구두점 제거 후 재trim한다 — "민수와 ," 처럼 구두점 앞 공백이 남으면
-		 * 이후 endsWith 기반 조사 처리가 통째로 실패한다.
-		 */
-		/*
-		 * NFKC로 호환 자모("ㅋㅋ" 등)를 정규화 후 제거한다 — 자모만 남은 조각은 이름이 될 수 없고,
-		 * 전부 자모였다면 빈 문자열이 되어 Extraction 검증에서 걸린다.
+		 * 구두점 제거 후 재trim한다 — "민수와 ," 처럼 구두점 앞 공백이 남으면 이후 endsWith
+		 * 기반 조사 처리가 실패한다. NFKC 호환 자모("ㅋㅋ" 등)도 함께 제거한다 — 자모만 남은
+		 * 조각은 이름이 될 수 없고, 전부 자모였다면 빈 문자열이 되어 Extraction 검증에서 걸린다.
 		 */
 		return normalized
 				.trim()

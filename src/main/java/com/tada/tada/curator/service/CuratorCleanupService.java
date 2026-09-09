@@ -4,6 +4,7 @@ import com.tada.tada.curator.repository.DiaryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -21,7 +22,9 @@ public class CuratorCleanupService {
 	private final MentionCandidateRepository mentionCandidateRepository;
 	private final DiaryPersonRepository diaryPersonRepository;
 
-	@Transactional
+	@Transactional(
+			propagation = Propagation.MANDATORY
+	)
 	public void deleteByDiaryId(
 			UUID diaryId
 	) {

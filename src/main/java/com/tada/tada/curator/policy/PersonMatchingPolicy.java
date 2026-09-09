@@ -20,6 +20,8 @@ public final class PersonMatchingPolicy {
 
 	public static final int NORMALIZED_HISTORY_MIN_COUNT = 2;
 
+	public static final int RAW_TEXT_HISTORY_MIN_COUNT = 2;
+
 	public static final double NORMALIZED_HISTORY_MIN_DOMINANCE_RATIO = 0.80;
 
 	public static final int NORMALIZED_HISTORY_MIN_COUNT_GAP = 2;
