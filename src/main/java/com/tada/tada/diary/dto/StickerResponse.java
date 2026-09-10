@@ -1,4 +1,4 @@
-package com.tada.tada.sticker.dto;
+package com.tada.tada.diary.dto;
 
 import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.entity.StickerType;
