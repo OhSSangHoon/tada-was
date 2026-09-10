@@ -53,7 +53,7 @@ public class StickerController {
 			throw new CustomException("size는 1 이상이어야 합니다.", 400);
 		}
 		
-		Page<StickerResponse> result = stickerService.getMyStickers(userId, sortOption, page, size);
+		Page<StickerResponse> result = stickerService.getAllStickers(userId, sortOption, page, size);
 		
 		return ApiResponse.success(result);
 	}

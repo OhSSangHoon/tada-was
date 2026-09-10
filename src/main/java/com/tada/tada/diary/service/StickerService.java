@@ -25,7 +25,7 @@ public class StickerService {
 	
 	private final StickerRepository stickerRepository;
 	
-	public Page<StickerResponse> getMyStickers(UUID userId, StickerSortOption sortOption, int page, int size) {
+	public Page<StickerResponse> getAllStickers(UUID userId, StickerSortOption sortOption, int page, int size) {
 		
 		Sort sort = Sort.by(sortOption.getDirection(), "createdAt");
 		Pageable pageable = PageRequest.of(page, size, sort);
