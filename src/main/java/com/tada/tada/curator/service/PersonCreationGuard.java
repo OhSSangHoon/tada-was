@@ -35,12 +35,28 @@ public class PersonCreationGuard {
 				Set.of()
 		);
 	}
-
+	
 	public Optional<UUID> findReusablePerson(
 			UUID userId,
 			String rawText,
 			String normalizedText,
 			Set<UUID> blockedPersonIds
+	) {
+		return findReusablePerson(
+				userId,
+				rawText,
+				normalizedText,
+				blockedPersonIds,
+				Set.of()
+		);
+	}
+	
+	public Optional<UUID> findReusablePerson(
+			UUID userId,
+			String rawText,
+			String normalizedText,
+			Set<UUID> blockedPersonIds,
+			Set<UUID> currentCandidatePersonIds
 	) {
 		if (userId == null) {
 			throw new IllegalArgumentException(
@@ -62,11 +78,16 @@ public class PersonCreationGuard {
 				&& safeNormalizedText.isBlank()) {
 			return Optional.empty();
 		}
-
+		
 		Set<UUID> blockedIds =
 				blockedPersonIds == null
 						? Set.of()
 						: Set.copyOf(blockedPersonIds);
+		
+		Set<UUID> currentCandidateIds =
+				currentCandidatePersonIds == null
+						? Set.of()
+						: Set.copyOf(currentCandidatePersonIds);
 
 		List<MentionCandidate> histories =
 				mentionCandidateRepository
@@ -80,12 +101,13 @@ public class PersonCreationGuard {
 		if (histories.isEmpty()) {
 			return Optional.empty();
 		}
-
+		
 		Optional<UUID> rawTextMatch =
 				findStableRawTextMatch(
 						histories,
 						safeRawText,
-						blockedIds
+						blockedIds,
+						currentCandidateIds
 				);
 
 		if (rawTextMatch.isPresent()) {
@@ -99,11 +121,12 @@ public class PersonCreationGuard {
 				blockedIds
 		);
 	}
-
+	
 	private Optional<UUID> findStableRawTextMatch(
 			List<MentionCandidate> histories,
 			String rawText,
-			Set<UUID> blockedPersonIds
+			Set<UUID> blockedPersonIds,
+			Set<UUID> currentCandidatePersonIds
 	) {
 		if (rawText.isBlank()) {
 			return Optional.empty();
@@ -150,19 +173,33 @@ public class PersonCreationGuard {
 				diaryIdsByPerson.entrySet()
 						.iterator()
 						.next();
-
+		
+		UUID personId =
+				onlyMatch.getKey();
+		
+		int historyCount =
+				onlyMatch.getValue().size();
+		
 		/*
-		 * 이력 1건만으로 즉시 재사용하지 않는다 — 잘못 확정된 이력 하나가
-		 * 그대로 고착되는 것을 막는다 (normalizedText 경로와 동일 원칙).
+		 * 서로 다른 ACTIVE Diary에서 동일 rawText가 2회 이상
+		 * 같은 Person으로 수렴했다면 안정 이력으로 재사용한다.
 		 */
-		if (onlyMatch.getValue().size()
-				< PersonMatchingPolicy.RAW_TEXT_HISTORY_MIN_COUNT) {
-			return Optional.empty();
+		if (historyCount
+				>= PersonMatchingPolicy.RAW_TEXT_HISTORY_MIN_COUNT) {
+			return Optional.of(personId);
 		}
-
-		return Optional.of(
-				onlyMatch.getKey()
-		);
+		
+		/*
+		 * 동일 rawText 이력이 1회뿐이면 과거 이력만으로 재사용하지 않는다.
+		 * 단, 현재 매칭에서도 동일 Person이 AMBIGUOUS 후보로 나온 경우에는
+		 * 과거 이력과 현재 매칭이라는 두 근거가 일치한 것으로 보고 재사용한다.
+		 */
+		if (historyCount == 1
+				&& currentCandidatePersonIds.contains(personId)) {
+			return Optional.of(personId);
+		}
+		
+		return Optional.empty();
 	}
 
 	private Optional<UUID> findStableNormalizedTextMatch(

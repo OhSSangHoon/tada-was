@@ -125,15 +125,32 @@ public class PersonResolverService {
 			Set<UUID> blockedPersonIds,
 			PersonMatchResult matchResult
 	) {
-		Optional<UUID> reusablePersonId =
-				personCreationGuard
-						.findReusablePerson(
-								userId,
-								rawText,
-								normalization
-										.normalizedText(),
-								blockedPersonIds
-						);
+		Optional<UUID> reusablePersonId;
+		
+		if (matchResult.candidatePersonIds().isEmpty()) {
+			reusablePersonId =
+					personCreationGuard
+							.findReusablePerson(
+									userId,
+									rawText,
+									normalization
+											.normalizedText(),
+									blockedPersonIds
+							);
+		} else {
+			reusablePersonId =
+					personCreationGuard
+							.findReusablePerson(
+									userId,
+									rawText,
+									normalization
+											.normalizedText(),
+									blockedPersonIds,
+									Set.copyOf(
+											matchResult.candidatePersonIds()
+									)
+							);
+		}
 
 		if (reusablePersonId.isPresent()
 				&& canReuseMatchCandidate(
