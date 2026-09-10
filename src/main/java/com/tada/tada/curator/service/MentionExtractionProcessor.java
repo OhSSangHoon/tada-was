@@ -33,7 +33,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class MentionExtractionProcessor {
-
+	
 	private final DiaryRepository diaryRepository;
 	private final ExtractionResultValidator extractionResultValidator;
 	private final MentionCandidateService mentionCandidateService;
@@ -41,7 +41,7 @@ public class MentionExtractionProcessor {
 	private final DiaryPersonService diaryPersonService;
 	private final PersonAggregateService personAggregateService;
 	private final PersonNormalizer personNormalizer;
-
+	
 	/*
 	 * MANDATORY다 — 상위 트랜잭션 없으면 즉시 예외. REQUIRED면 트랜잭션 밖 발행 시
 	 * Curator 데이터만 별도 commit되어 Diary 없이 인물 데이터가 남을 수 있다 (명세 17.1).
@@ -53,13 +53,13 @@ public class MentionExtractionProcessor {
 			MentionExtractedEvent event
 	) {
 		validateEvent(event);
-
+		
 		Diary diary =
 				findAndValidateDiary(
 						event.diaryId(),
 						event.userId()
 				);
-
+		
 		/*
 		 * Diary row lock 이후에 확인한다 — lock 전에 검사하면 동시 진입한 두 이벤트가 모두 통과할 수 있다.
 		 * 최초 처리 중복만 막고, 본문 수정 재추출은 별도 reconcile이 필요하다.
@@ -70,15 +70,15 @@ public class MentionExtractionProcessor {
 				)) {
 			return;
 		}
-
+		
 		ExtractionResult extractionResult =
 				event.extractionResult();
-
+		
 		extractionResultValidator.validate(
 				diary.getContent(),
 				extractionResult
 		);
-
+		
 		Map<String, MentionCandidate>
 				personCandidatesByRef =
 				createPersonCandidates(
@@ -86,24 +86,24 @@ public class MentionExtractionProcessor {
 						event.userId(),
 						extractionResult.persons()
 				);
-
+		
 		List<MentionCandidate> personCandidates =
 				new ArrayList<>(
 						personCandidatesByRef.values()
 				);
-
+		
 		createPlaceCandidates(
 				event.diaryId(),
 				extractionResult.places(),
 				personCandidatesByRef
 		);
-
+		
 		createActivityCandidates(
 				event.diaryId(),
 				extractionResult.activities(),
 				personCandidatesByRef
 		);
-
+		
 		Set<UUID> affectedPersonIds =
 				diaryPersonService
 						.reconcileDiaryPersons(
@@ -111,13 +111,13 @@ public class MentionExtractionProcessor {
 								event.userId(),
 								personCandidates
 						);
-
+		
 		personAggregateService.recalculate(
 				event.userId(),
 				affectedPersonIds
 		);
 	}
-
+	
 	private Map<String, MentionCandidate>
 	createPersonCandidates(
 			UUID diaryId,
@@ -130,42 +130,39 @@ public class MentionExtractionProcessor {
 		Map<String, MentionCandidate>
 				candidatesByRef =
 				new LinkedHashMap<>();
-
+		
 		Set<UUID> assignedPersonIds =
 				new HashSet<>();
-
+		
 		/*
-		 * 같은 extraction 안에서 이미 배정한 인물을 재사용할 근거 두 가지를 모은다
-		 * (findReusablePersonIdsInDiary).
-		 *   1. 조사 변형: normalizedText 완전 일치 (예: "민수"/"민수가" 모두 "민수")
-		 *   2. 성 포함/생략 변형: 한쪽에서 성을 떼면 다른 쪽과 같음 (예: "민수"/"김민수")
-		 * 두 근거를 합친 후보가 정확히 1명일 때만 unblock한다. 2명 이상이면(이미 서로 다른
-		 * 사람으로 배정된 경우) 확정할 수 없으므로 자동 unblock하지 않는다.
+		 * 같은 ExtractionResult 안에서는 normalizedText가 완전히 같은 ref만
+		 * 동일 인물 재사용 예외를 허용한다.
+		 * 정확히 1명의 Person에만 배정된 경우에만 BLOCK을 해제한다.
 		 */
 		Map<String, Set<UUID>>
 				assignedPersonIdsByNormalizedText =
 				new HashMap<>();
-
+		
 		for (PersonExtraction person : persons) {
 			PersonNormalization normalization =
 					personNormalizer.normalize(
 							person.rawText()
 					);
-
+			
 			String normalizedText =
 					normalization.normalizedText();
-
+			
 			Set<UUID> blockedPersonIds =
 					new HashSet<>(
 							assignedPersonIds
 					);
-
+			
 			Set<UUID> reusablePersonIds =
 					findReusablePersonIdsInDiary(
 							normalizedText,
 							assignedPersonIdsByNormalizedText
 					);
-
+			
 			if (reusablePersonIds.size() == 1) {
 				blockedPersonIds.remove(
 						reusablePersonIds
@@ -173,7 +170,7 @@ public class MentionExtractionProcessor {
 								.next()
 				);
 			}
-
+			
 			MentionCandidate candidate =
 					mentionCandidateService
 							.createPersonCandidate(
@@ -182,20 +179,20 @@ public class MentionExtractionProcessor {
 									person.rawText(),
 									blockedPersonIds
 							);
-
+			
 			candidatesByRef.put(
 					person.ref(),
 					candidate
 			);
-
+			
 			UUID matchedPersonId =
 					candidate
 							.getMatchedPersonId();
-
+			
 			assignedPersonIds.add(
 					matchedPersonId
 			);
-
+			
 			assignedPersonIdsByNormalizedText
 					.computeIfAbsent(
 							normalizedText,
@@ -205,64 +202,29 @@ public class MentionExtractionProcessor {
 							matchedPersonId
 					);
 		}
-
+		
 		return candidatesByRef;
 	}
-
+	
 	/*
-	 * 이번 ref와 같은 사람일 근거가 있는 personId를 모은다
-	 * (조사 변형 + removeSurname 성 변형, 위 로직과 동일 기준).
-	 * 정확히 1명일 때만 호출부가 재사용한다. 근거가 서로 다른 사람을 가리키면
-	 * 후보가 2명 이상이 되어 보수적으로(차단 유지) 처리된다.
+	 * 이번 ExtractionResult 안에서 normalizedText가 완전히 같은 ref에
+	 * 이미 배정된 personId만 재사용 후보로 본다.
+	 * 후보가 정확히 1명일 때만 호출부가 BLOCK을 해제한다.
 	 */
 	private Set<UUID> findReusablePersonIdsInDiary(
 			String normalizedText,
 			Map<String, Set<UUID>>
 					assignedPersonIdsByNormalizedText
 	) {
-		Set<UUID> reusablePersonIds =
-				new HashSet<>();
-
-		String surnameRemoved =
-				personNormalizer.removeSurname(
-						normalizedText
-				);
-
-		for (Map.Entry<String, Set<UUID>> entry
-				: assignedPersonIdsByNormalizedText
-				.entrySet()) {
-
-			String assignedNormalizedText =
-					entry.getKey();
-
-			boolean sameParticleVariant =
-					assignedNormalizedText.equals(
-							normalizedText
-					);
-
-			boolean sameSurnameVariant =
-					!sameParticleVariant
-							&& (assignedNormalizedText
-							.equals(surnameRemoved)
-
-							|| personNormalizer
-							.removeSurname(
-									assignedNormalizedText
-							)
-							.equals(normalizedText));
-
-			if (sameParticleVariant
-					|| sameSurnameVariant) {
-
-				reusablePersonIds.addAll(
-						entry.getValue()
-				);
-			}
-		}
-
-		return reusablePersonIds;
+		return new HashSet<>(
+				assignedPersonIdsByNormalizedText
+						.getOrDefault(
+								normalizedText,
+								Set.of()
+						)
+		);
 	}
-
+	
 	private void createPlaceCandidates(
 			UUID diaryId,
 			List<PlaceExtraction> places,
@@ -278,13 +240,13 @@ public class MentionExtractionProcessor {
 									place.normalizedText(),
 									MentionEntityType.PLACE
 							);
-
+			
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							place.personRefs(),
 							personCandidatesByRef
 					);
-
+			
 			relationService.createRelations(
 					diaryId,
 					sourceCandidate,
@@ -292,7 +254,7 @@ public class MentionExtractionProcessor {
 			);
 		}
 	}
-
+	
 	private void createActivityCandidates(
 			UUID diaryId,
 			List<ActivityExtraction> activities,
@@ -301,7 +263,7 @@ public class MentionExtractionProcessor {
 	) {
 		for (ActivityExtraction activity
 				: activities) {
-
+			
 			MentionCandidate sourceCandidate =
 					mentionCandidateService
 							.createNonPersonCandidate(
@@ -310,13 +272,13 @@ public class MentionExtractionProcessor {
 									activity.normalizedText(),
 									MentionEntityType.ACTIVITY
 							);
-
+			
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							activity.personRefs(),
 							personCandidatesByRef
 					);
-
+			
 			relationService.createRelations(
 					diaryId,
 					sourceCandidate,
@@ -324,7 +286,7 @@ public class MentionExtractionProcessor {
 			);
 		}
 	}
-
+	
 	private List<MentionCandidate>
 	resolvePersonCandidates(
 			List<String> personRefs,
@@ -333,26 +295,26 @@ public class MentionExtractionProcessor {
 	) {
 		List<MentionCandidate> persons =
 				new ArrayList<>();
-
+		
 		for (String personRef : personRefs) {
 			MentionCandidate candidate =
 					personCandidatesByRef.get(
 							personRef
 					);
-
+			
 			if (candidate == null) {
 				throw new IllegalStateException(
 						"PERSON candidate does not exist for ref: "
 								+ personRef
 				);
 			}
-
+			
 			persons.add(candidate);
 		}
-
+		
 		return persons;
 	}
-
+	
 	private Diary findAndValidateDiary(
 			UUID diaryId,
 			UUID userId
@@ -368,7 +330,7 @@ public class MentionExtractionProcessor {
 												"diary does not exist"
 										)
 						);
-
+		
 		if (!userId.equals(
 				diary.getUserId()
 		)) {
@@ -376,16 +338,16 @@ public class MentionExtractionProcessor {
 					"diary belongs to another user"
 			);
 		}
-
+		
 		if (!diary.isActive()) {
 			throw new IllegalStateException(
 					"diary must be active"
 			);
 		}
-
+		
 		return diary;
 	}
-
+	
 	private void validateEvent(
 			MentionExtractedEvent event
 	) {
@@ -394,19 +356,19 @@ public class MentionExtractionProcessor {
 					"event must not be null"
 			);
 		}
-
+		
 		if (event.diaryId() == null) {
 			throw new IllegalArgumentException(
 					"diaryId must not be null"
 			);
 		}
-
+		
 		if (event.userId() == null) {
 			throw new IllegalArgumentException(
 					"userId must not be null"
 			);
 		}
-
+		
 		if (event.extractionResult() == null) {
 			throw new IllegalArgumentException(
 					"extractionResult must not be null"

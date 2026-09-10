@@ -37,11 +37,12 @@ public interface DiaryPersonRepository
 			@Param("userId") UUID userId,
 			@Param("personId") UUID personId
 	);
-
+	
 	/*
 	 * 대표 Sticker = 최근 ACTIVE 일기의 Sticker. 그 일기에 없으면 null이며,
 	 * 옛 일기로 내려가며 찾지 않는다 (카드 날짜와 그림의 일기가 어긋나는 것을 방지).
-	 * (user_id, entry_date) ACTIVE partial unique 덕분에 최대 entry_date 일기는 사람당 한 건이다.
+	 * 실제 Supabase의 (user_id, entry_date) WHERE status = 'ACTIVE'
+	 * partial unique index를 전제로 최대 entry_date 일기는 사용자당 한 건이다.
 	 */
 	@Query("""
 			SELECT

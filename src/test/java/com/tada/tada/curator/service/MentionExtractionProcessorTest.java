@@ -340,4 +340,125 @@ class MentionExtractionProcessorTest {
 		verify(memoryPersonRepository, never())
 				.save(any(MemoryPerson.class));
 	}
+	
+	@Test
+	void 같은_일기의_성_포함_생략_이름은_자동으로_같은_인물을_재사용하지_않는다() {
+		UUID diaryId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		
+		UUID fullNamePersonId = UUID.randomUUID();
+		UUID shortNamePersonId = UUID.randomUUID();
+		
+		Diary diary = Diary.builder()
+				.userId(userId)
+				.entryDate(LocalDate.now())
+				.title("오늘")
+				.content("김민혁과 민혁을 만났다")
+				.build();
+		
+		MentionCandidate fullNameCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"김민혁",
+						"김민혁",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						fullNamePersonId
+				);
+		
+		MentionCandidate shortNameCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"민혁",
+						"민혁",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						shortNamePersonId
+				);
+		
+		ExtractionResult extractionResult =
+				new ExtractionResult(
+						List.of(
+								new PersonExtraction(
+										"p1",
+										"김민혁",
+										"PERSON"
+								),
+								new PersonExtraction(
+										"p2",
+										"민혁",
+										"PERSON"
+								)
+						),
+						List.of(),
+						List.of()
+				);
+		
+		when(
+				diaryRepository.findByIdForUpdate(diaryId)
+		).thenReturn(
+				Optional.of(diary)
+		);
+		
+		when(
+				mentionCandidateService.createPersonCandidate(
+						diaryId,
+						userId,
+						"김민혁",
+						Set.of()
+				)
+		).thenReturn(
+				fullNameCandidate
+		);
+		
+		when(
+				mentionCandidateService.createPersonCandidate(
+						diaryId,
+						userId,
+						"민혁",
+						Set.of(fullNamePersonId)
+				)
+		).thenReturn(
+				shortNameCandidate
+		);
+		
+		when(
+				diaryPersonService.reconcileDiaryPersons(
+						eq(diaryId),
+						eq(userId),
+						any()
+				)
+		).thenReturn(
+				Set.of(
+						fullNamePersonId,
+						shortNamePersonId
+				)
+		);
+		
+		processor.process(
+				new MentionExtractedEvent(
+						diaryId,
+						userId,
+						extractionResult
+				)
+		);
+		
+		verify(
+				mentionCandidateService
+		).createPersonCandidate(
+				diaryId,
+				userId,
+				"김민혁",
+				Set.of()
+		);
+		
+		verify(
+				mentionCandidateService
+		).createPersonCandidate(
+				diaryId,
+				userId,
+				"민혁",
+				Set.of(fullNamePersonId)
+		);
+	}
 }
