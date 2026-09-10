@@ -45,7 +45,7 @@ class StickerServiceTest {
 		when(stickerRepository.findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of()));
 		
-		stickerService.getMyStickers(userId, StickerSortOption.OLDEST, 0, 12);
+		stickerService.getAllStickers(userId, StickerSortOption.OLDEST, 0, 12);
 		
 		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 		verify(stickerRepository).findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), pageableCaptor.capture());
@@ -61,7 +61,7 @@ class StickerServiceTest {
 		when(stickerRepository.findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of()));
 		
-		stickerService.getMyStickers(userId, StickerSortOption.LATEST, 0, 12);
+		stickerService.getAllStickers(userId, StickerSortOption.LATEST, 0, 12);
 		
 		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 		verify(stickerRepository).findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), pageableCaptor.capture());
@@ -77,7 +77,7 @@ class StickerServiceTest {
 		when(stickerRepository.findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of()));
 		
-		Page<StickerResponse> result = stickerService.getMyStickers(userId, StickerSortOption.LATEST, 0, 12);
+		Page<StickerResponse> result = stickerService.getAllStickers(userId, StickerSortOption.LATEST, 0, 12);
 		
 		assertEquals(0, result.getTotalElements());
 		assertTrue(result.getContent().isEmpty());
@@ -93,7 +93,7 @@ class StickerServiceTest {
 		when(stickerRepository.findByUserId(eq(userId), eq(DiaryStatus.ACTIVE), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of(sticker), pageable, 1));
 		
-		Page<StickerResponse> result = stickerService.getMyStickers(userId, StickerSortOption.LATEST, 0, 12);
+		Page<StickerResponse> result = stickerService.getAllStickers(userId, StickerSortOption.LATEST, 0, 12);
 		
 		assertEquals(1, result.getTotalElements());
 		assertEquals("행복", result.getContent().get(0).getKeyword());
