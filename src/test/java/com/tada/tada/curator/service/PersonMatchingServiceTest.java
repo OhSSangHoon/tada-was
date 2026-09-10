@@ -44,7 +44,17 @@ class PersonMatchingServiceTest {
 	}
 
 	@Test
-	void 기존_인물_한명과_정확히_일치하면_exact를_반환한다() {
+	void 애매한_조사를_떼야만_일치하는_기존_인물은_ambiguous_후보로만_올라간다() {
+		/*
+		 * "한영이와"는 안전 조사 "와"를 떼면 "한영이"까지만 안전하고,
+		 * "한영"에 닿으려면 애매한 조사 "이"까지 떼야 한다.
+		 *
+		 * "한영이"가 실제로는 다른 사람의 이름일 수 있으므로
+		 * (감사 사례: 기존 "김성", 입력 "김성은" → 예전에는 EXACT였지만
+		 * 실제 이름이 김성은인 사람에게 잘못 붙을 위험이 있었다)
+		 * 애매한 조사 제거로만 도달하는 일치는 EXACT로 자동 연결하지
+		 * 않고 ambiguous 후보로만 남긴다.
+		 */
 		UUID userId = UUID.randomUUID();
 		UUID personId = UUID.randomUUID();
 
@@ -64,6 +74,12 @@ class PersonMatchingServiceTest {
 				any()
 		)).thenReturn(List.of());
 
+		when(memoryPersonRepository.findAllByUserId(userId))
+				.thenReturn(List.of(person));
+
+		when(personAliasRepository.findAllByOwnerUserId(userId))
+				.thenReturn(List.of());
+
 		PersonMatchResult result =
 				personMatchingService.match(
 						userId,
@@ -71,13 +87,13 @@ class PersonMatchingServiceTest {
 				);
 
 		assertEquals(
-				PersonMatchType.EXACT,
+				PersonMatchType.AMBIGUOUS,
 				result.matchType()
 		);
 
 		assertEquals(
-				personId,
-				result.matchedPersonId()
+				List.of(personId),
+				result.candidatePersonIds()
 		);
 	}
 
@@ -281,14 +297,19 @@ class PersonMatchingServiceTest {
 	}
 
 	@Test
-	void 이름_끝일_수_있는_접미사는_기존_인물이_있을_때만_연결한다() {
+	void 이름_끝일_수_있는_접미사는_기존_인물이_있어도_ambiguous_후보로만_연결한다() {
 		/*
 		 * "김사랑"은 이름 그 자체일 수도 "김사 + 랑"일 수도 있다.
 		 *
-		 * 이미 "김사"라는 인물이 있으면 조사 해석이 근거를 얻으므로
-		 * 그 인물로 연결한다. 근거가 없으면 새 인물이 되고
-		 * 이때 표시 이름은 "김사랑" 원문이 그대로 유지된다.
-		 * (PersonNormalizerTest 참고)
+		 * 예전에는 "김사"라는 인물이 있으면 그 조사 해석을 그대로
+		 * EXACT로 확정했다. 하지만 실제 이름이 "김사랑"인 사람도
+		 * 있을 수 있어, "김사"라는 인물의 존재만으로 자동 연결하면
+		 * 서로 다른 두 사람이 합쳐질 위험이 있다. (감사 지적)
+		 *
+		 * 지금은 "김사"를 ambiguous 후보로만 올리고, 자동 연결은
+		 * 다른 근거(반복 언급 이력 등)가 쌓였을 때만 이뤄진다.
+		 * 근거가 아예 없으면 새 인물이 되고 표시 이름은 "김사랑"
+		 * 원문이 그대로 유지된다. (PersonNormalizerTest 참고)
 		 *
 		 * 은/이 접미사와 동일한 정책이다.
 		 */
@@ -311,17 +332,23 @@ class PersonMatchingServiceTest {
 				any()
 		)).thenReturn(List.of());
 
+		when(memoryPersonRepository.findAllByUserId(userId))
+				.thenReturn(List.of(shortLove));
+
+		when(personAliasRepository.findAllByOwnerUserId(userId))
+				.thenReturn(List.of());
+
 		PersonMatchResult result =
 				personMatchingService.match(userId, "김사랑");
 
 		assertEquals(
-				PersonMatchType.EXACT,
+				PersonMatchType.AMBIGUOUS,
 				result.matchType()
 		);
 
 		assertEquals(
-				shortLoveId,
-				result.matchedPersonId()
+				List.of(shortLoveId),
+				result.candidatePersonIds()
 		);
 	}
 
@@ -553,7 +580,17 @@ class PersonMatchingServiceTest {
 	}
 
 	@Test
-	void 주격_조사가_붙은_기존_인물은_exact로_반환한다() {
+	void 주격_조사가_붙은_기존_인물은_ambiguous_후보로만_반환한다() {
+		/*
+		 * "김민혁이"의 "이"는 거의 확실히 주격 조사이지만,
+		 * 기계적으로는 "성은/사랑"처럼 이름의 일부일 수도 있는
+		 * 애매한 접미사와 같은 갈래다. (감사 지적: 은/이/도/랑/님/씨/아
+		 * 제거만으로 EXACT를 만들지 않기)
+		 *
+		 * "거의 확실히 조사"라는 확신은 아직 코드가 가진 근거가
+		 * 아니므로, 지금은 이 경우도 ambiguous 후보로만 올리고
+		 * 자동 연결은 반복 언급 이력 등 다른 근거에 맡긴다.
+		 */
 		UUID userId = UUID.randomUUID();
 		UUID personId = UUID.randomUUID();
 
@@ -573,6 +610,12 @@ class PersonMatchingServiceTest {
 				any()
 		)).thenReturn(List.of());
 
+		when(memoryPersonRepository.findAllByUserId(userId))
+				.thenReturn(List.of(person));
+
+		when(personAliasRepository.findAllByOwnerUserId(userId))
+				.thenReturn(List.of());
+
 		PersonMatchResult result =
 				personMatchingService.match(
 						userId,
@@ -580,17 +623,12 @@ class PersonMatchingServiceTest {
 				);
 
 		assertEquals(
-				PersonMatchType.EXACT,
+				PersonMatchType.AMBIGUOUS,
 				result.matchType()
 		);
 
 		assertEquals(
-				personId,
-				result.matchedPersonId()
-		);
-
-		assertEquals(
-				List.of(),
+				List.of(personId),
 				result.candidatePersonIds()
 		);
 	}
@@ -690,7 +728,17 @@ class PersonMatchingServiceTest {
 	}
 
 	@Test
-	void 정규화하면_같은_이름이_되는_인물이_여러_명이면_ambiguous를_반환한다() {
+	void 안전_조사로_일치하는_기존_인물이_있으면_애매한_수렴_후보를_무시하고_exact로_찾는다() {
+		/*
+		 * "한영이가"는 안전 조사 "가"만 떼면 "한영이"이고,
+		 * 이는 실제로 등록된 인물 "한영이"의 원문과 그대로 같다.
+		 * 안전한 근거만으로 이미 유일하게 설명되므로 여기서 멈춘다.
+		 *
+		 * "한영이"를 다시 애매한 조사로 "한영"까지 떼서 "한영은"과
+		 * 충돌시키는 건, 이미 안전하게 설명된 형태를 다시 애매하게
+		 * 재해석하는 불필요한 추가 추측이다. 안전한 설명이 있을 때는
+		 * 그쪽을 우선한다.
+		 */
 		UUID userId = UUID.randomUUID();
 		UUID personId1 = UUID.randomUUID();
 		UUID personId2 = UUID.randomUUID();
@@ -730,19 +778,87 @@ class PersonMatchingServiceTest {
 				);
 
 		assertEquals(
+				PersonMatchType.EXACT,
+				result.matchType()
+		);
+
+		assertEquals(
+				personId2,
+				result.matchedPersonId()
+		);
+	}
+
+	@Test
+	void 애매한_조사_제거로만_기존_인물과_같아져도_exact로_합치지_않는다() {
+		/*
+		 * 감사에서 실제로 재현했던 사례(기존 "김성", 입력 "김성은"
+		 * → 예전에는 "은"을 애매한 조사로 떼서 EXACT로 합쳤다. 실제
+		 * 이름이 "김성은"인 사람일 수도 있어 위험한 연결이었다)의
+		 * 변형이다.
+		 *
+		 * 여기서는 기존 "김성은"에 입력 "김성이"를 준다. 둘 다 애매한
+		 * 조사를 떼면 "김성"으로 수렴하지만, 그 수렴형은
+		 * safeMatchCandidates에 들어가지 않으므로 EXACT/정규화-EXACT
+		 * 어느 단계에서도 자동으로 합쳐지지 않는다. 편집 거리 기반
+		 * 약한 점수만 붙어 SIMILAR 임계값(60점)에 못 미치므로
+		 * ambiguous 후보로만 남는다.
+		 */
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		MemoryPerson person = createMemoryPerson(
+				personId,
+				userId,
+				"김성은"
+		);
+
+		when(memoryPersonRepository.findAllByUserIdAndDisplayNameIn(
+				eq(userId),
+				any()
+		)).thenReturn(List.of());
+
+		when(personAliasRepository.findAllByOwnerUserIdAndNormalizedTextIn(
+				eq(userId),
+				any()
+		)).thenReturn(List.of());
+
+		when(memoryPersonRepository.findAllByUserId(userId))
+				.thenReturn(List.of(person));
+
+		when(personAliasRepository.findAllByOwnerUserId(userId))
+				.thenReturn(List.of());
+
+		PersonMatchResult result =
+				personMatchingService.match(
+						userId,
+						"김성이"
+				);
+
+		assertEquals(
 				PersonMatchType.AMBIGUOUS,
 				result.matchType()
 		);
 
-		assertNull(result.matchedPersonId());
+		assertEquals(
+				List.of(personId),
+				result.candidatePersonIds()
+		);
 	}
 
 	@Test
-	void 원문_exact가_정규화_수렴_후보보다_우선한다() {
+	void 원문에_가까운_후보가_정규화_수렴_후보보다_ambiguous_순위에서_앞선다() {
 		/*
-		 * displayName 직접 일치가 존재하면
-		 * 정규화하면 같아지는 다른 인물 때문에
-		 * ambiguous 로 내려가지 않는다.
+		 * "한영이가"는 안전 조사 "가"를 떼면 "한영이"이고, 이는 어느
+		 * 기존 인물의 원문과도 그대로 같지 않다("한영", "한영은"
+		 * 모두 다른 문자열). 그래서 EXACT/정규화-EXACT 단계는 모두
+		 * 통과하지 못하고 점수 비교로 넘어간다.
+		 *
+		 * "한영"은 애매한 조사 "이"까지 뗀 형태와 문자열이 같아
+		 * ambiguous 점수(30점)를 받고, "한영은"은 편집 거리로만
+		 * 약하게(10점) 걸린다. 원문에 더 가까운 근거가 항상 점수
+		 * 순위에서 앞서지만, 둘 다 SIMILAR 임계값(60점)에는 못
+		 * 미치므로 자동으로 확정되지는 않고 순위가 있는 ambiguous
+		 * 후보로 남는다.
 		 */
 		UUID userId = UUID.randomUUID();
 		UUID directPersonId = UUID.randomUUID();
@@ -783,13 +899,13 @@ class PersonMatchingServiceTest {
 				);
 
 		assertEquals(
-				PersonMatchType.EXACT,
+				PersonMatchType.AMBIGUOUS,
 				result.matchType()
 		);
 
 		assertEquals(
-				directPersonId,
-				result.matchedPersonId()
+				List.of(directPersonId, normalizedPersonId),
+				result.candidatePersonIds()
 		);
 	}
 

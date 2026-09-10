@@ -125,15 +125,32 @@ public class PersonResolverService {
 			Set<UUID> blockedPersonIds,
 			PersonMatchResult matchResult
 	) {
-		Optional<UUID> reusablePersonId =
-				personCreationGuard
-						.findReusablePerson(
-								userId,
-								rawText,
-								normalization
-										.normalizedText(),
-								blockedPersonIds
-						);
+		Optional<UUID> reusablePersonId;
+		
+		if (matchResult.candidatePersonIds().isEmpty()) {
+			reusablePersonId =
+					personCreationGuard
+							.findReusablePerson(
+									userId,
+									rawText,
+									normalization
+											.normalizedText(),
+									blockedPersonIds
+							);
+		} else {
+			reusablePersonId =
+					personCreationGuard
+							.findReusablePerson(
+									userId,
+									rawText,
+									normalization
+											.normalizedText(),
+									blockedPersonIds,
+									Set.copyOf(
+											matchResult.candidatePersonIds()
+									)
+							);
+		}
 
 		if (reusablePersonId.isPresent()
 				&& canReuseMatchCandidate(
@@ -159,17 +176,10 @@ public class PersonResolverService {
 		}
 
 		/*
-		 * 표시 이름에는 매칭용 normalizedText 가 아니라
-		 * displayNameCandidate 를 사용한다.
-		 *
-		 * "은", "이" 는 조사일 수도 실제 이름의 끝 글자일 수도 있어
-		 * 매칭 후보로만 제거하고 표시 이름에는 반영하지 않는다.
-		 *
-		 *   "김성은" -> "김성" 으로 줄이지 않는다
-		 *   "가을이" -> "가을" 로 줄이지 않는다
-		 *
-		 * 같은 사람이 나중에 다른 조사로 등장하면
-		 * PersonMatchingService 의 정규화 exact 단계가 다시 연결한다.
+		 * 표시 이름에는 매칭용 normalizedText가 아니라 displayNameCandidate를 쓴다.
+		 * "은","이"는 조사일 수도 이름 끝 글자일 수도 있어 매칭 후보에서만 제거한다
+		 * ("김성은"→"김성"으로 줄이지 않음). 같은 사람이 나중에 다른 조사로 등장하면
+		 * PersonMatchingService의 정규화 exact 단계가 다시 연결한다.
 		 */
 		return createPerson(
 				userId,

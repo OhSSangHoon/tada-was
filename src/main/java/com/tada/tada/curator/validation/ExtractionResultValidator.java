@@ -20,10 +20,8 @@ import java.util.Set;
 public class ExtractionResultValidator {
 
 	/*
-	 * 대명사와 불특정 복수 지칭은 인물 카드가 될 수 없다. (명세 8.2-6)
-	 *
-	 * "엄마", "동생", "친구" 처럼 특정 인물을 가리킬 수 있는 단수 지칭은
-	 * 정상 인물로 두고, 가리키는 대상이 정해지지 않는 표현만 거부한다.
+	 * 대명사·불특정 복수 지칭은 인물 카드가 될 수 없다 (명세 8.2-6). "엄마","동생"처럼 특정
+	 * 인물을 가리킬 수 있는 단수 지칭은 정상 인물로 허용한다.
 	 */
 	private static final Set<String> NON_PERSON_TERMS =
 			Set.of(
@@ -43,8 +41,7 @@ public class ExtractionResultValidator {
 			);
 
 	/*
-	 * 완전일치만으로는 "우리" 는 막고 "우리들" 은 놓친다.
-	 * 아래 네 가지 결합 패턴을 추가로 판정한다. (명세 5.3)
+	 * 완전일치만으로는 "우리"는 막고 "우리들"은 놓친다 — 아래 네 결합 패턴을 추가 판정한다 (명세 5.3).
 	 */
 
 	/** 대명사 어간. 복수·한정 접미사와 결합하면 거부한다. */
@@ -101,8 +98,7 @@ public class ExtractionResultValidator {
 	}
 
 	/*
-	 * 여기는 Gemini/n8n DTO 경계다.
-	 * DTO 의 entityType 은 외부 JSON 원문이므로 String 을 유지하고,
+	 * Gemini/n8n DTO 경계 — entityType은 외부 JSON 원문이라 String을 유지하고,
 	 * 비교 대상만 내부 enum 이름에서 가져와 literal 중복을 없앤다.
 	 */
 	private static final String PERSON =
@@ -375,11 +371,8 @@ public class ExtractionResultValidator {
 	}
 
 	/*
-	 * 정규화 결과가 비면 정상 PERSON 으로 저장할 수 없다. (명세 8.2-6)
-	 *
-	 * 이 검사가 없으면 MentionCandidateService 안쪽에서
-	 * IllegalArgumentException 이 터져 Retry 경로를 타지 못하고
-	 * 일기 저장 전체가 실패한다.
+	 * 정규화 결과가 비면 정상 PERSON으로 저장할 수 없다 (명세 8.2-6) — 이 검사가 없으면
+	 * MentionCandidateService의 IllegalArgumentException이 터져 Retry 없이 일기 저장 전체가 실패한다.
 	 */
 	private void validatePersonNormalization(
 			String rawText,
@@ -557,16 +550,14 @@ public class ExtractionResultValidator {
 	}
 
 	/*
-	 * 명백히 중복된 PLACE/ACTIVITY 항목을 거부한다. (명세 5.3-9)
-	 *
-	 * PERSON 은 같은 표현이 여러 ref 로 나뉠 수 있고
-	 * Listener 가 같은 인물로 수렴시키므로 여기서 막지 않는다.
+	 * 명백히 중복된 PLACE/ACTIVITY는 거부한다 (명세 5.3-9). PERSON은 같은 표현이 여러 ref로
+	 * 나뉠 수 있고 Listener가 수렴시키므로 여기서 막지 않는다.
 	 */
 	private void validateNoDuplicateSources(
 			ExtractionResult extractionResult,
 			List<String> errors
 	) {
-		Set<String> seen = new HashSet<>();
+		Set<SourceKey> seen = new HashSet<>();
 
 		for (PlaceExtraction place
 				: extractionResult.places()) {
@@ -604,16 +595,21 @@ public class ExtractionResultValidator {
 	}
 
 	private void addDuplicateError(
-			Set<String> seen,
+			Set<SourceKey> seen,
 			String entityType,
 			String rawText,
 			String normalizedText,
 			List<String> personRefs,
 			List<String> errors
 	) {
+		/*
+		 * personRefs에 null이 있으면 validatePersonRefs가 이미 에러를 기록했으므로,
+		 * Collections.sort의 NPE로 전체 검증이 죽지 않도록 여기서는 조용히 넘어간다.
+		 */
 		if (isBlank(rawText)
 				|| isBlank(normalizedText)
-				|| personRefs == null) {
+				|| personRefs == null
+				|| personRefs.stream().anyMatch(this::isBlank)) {
 			return;
 		}
 
@@ -622,11 +618,13 @@ public class ExtractionResultValidator {
 
 		Collections.sort(sortedRefs);
 
-		String key =
-				entityType
-						+ "\u0000" + rawText
-						+ "\u0000" + normalizedText
-						+ "\u0000" + sortedRefs;
+		SourceKey key =
+				new SourceKey(
+						entityType,
+						rawText,
+						normalizedText.strip(),
+						sortedRefs
+				);
 
 		if (!seen.add(key)) {
 			errors.add(
@@ -636,6 +634,14 @@ public class ExtractionResultValidator {
 							+ rawText
 			);
 		}
+	}
+
+	private record SourceKey(
+			String entityType,
+			String rawText,
+			String normalizedText,
+			List<String> personRefs
+	) {
 	}
 
 	private void validateRawText(

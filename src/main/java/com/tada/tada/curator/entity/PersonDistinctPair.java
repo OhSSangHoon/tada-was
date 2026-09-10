@@ -30,11 +30,8 @@ public class PersonDistinctPair {
 	private LocalDateTime confirmedAt;
 
 	/*
-	 * 실제 DB 에는 쌍 unique 도 self-pair CHECK 도 없다. (명세 7.8)
-	 * 따라서 canonical 순서와 self-pair 금지를 여기서 강제한다.
-	 *
-	 * person_id_a < person_id_b 로 고정해
-	 * (A,B) 와 (B,A) 가 서로 다른 행으로 중복 저장되는 것을 막는다.
+	 * DB에 쌍 unique·self-pair CHECK가 없어(명세 7.8) 여기서 강제한다.
+	 * person_id_a < person_id_b 로 고정해 (A,B)/(B,A) 중복 저장을 막는다.
 	 */
 	public static PersonDistinctPair create(
 			UUID personIdA,
