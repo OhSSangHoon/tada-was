@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +35,7 @@ public class DiaryService {
 	private final StickerRepository stickerRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private static final int NEARBY_DATE_RANGE_DAYS = 3;
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	
 	@Transactional
 	public DiaryResponse createDiary(UUID userId, DiaryCreateForm form) {
@@ -135,7 +137,7 @@ public class DiaryService {
 			throw new CustomException("일기를 찾을 수 없습니다.", 404);
 		}
 		
-		Optional<Diary> existingActive = diaryRepository.findByUserIdAndEntryDateAndStatus(
+		Optional<Diary> existingActive = diaryRepository.findByUserIdAndEntryDateAndStatusForUpdate(
 				userId, target.getEntryDate(), DiaryStatus.ACTIVE);
 		
 		if (existingActive.isPresent()) {
@@ -163,7 +165,7 @@ public class DiaryService {
 					.build();
 		}
 		
-		LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+		LocalDateTime todayStart = LocalDate.now(KST).atStartOfDay();
 		long todayCount = diaryRepository.countByUserIdAndCreatedAtAfter(userId, todayStart);
 		if (todayCount >= 5) {
 			return CanCreateResponse.builder()

@@ -25,7 +25,13 @@ public interface DiaryRepository extends JpaRepository<Diary, UUID> {
 	);
 	
 	Optional<Diary> findByUserIdAndEntryDateAndStatus(UUID userId, LocalDate date, DiaryStatus status);
-	
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT diary FROM Diary diary WHERE diary.userId = :userId AND diary.entryDate = :date AND diary.status = :status")
+	Optional<Diary> findByUserIdAndEntryDateAndStatusForUpdate(
+			@Param("userId") UUID userId, @Param("date") LocalDate date, @Param("status") DiaryStatus status
+	);
+
 	long countByUserIdAndCreatedAtAfter(UUID userId, LocalDateTime after);
 	
 	List<Diary> findByUserIdAndStatus(UUID userId, DiaryStatus status);
