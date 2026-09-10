@@ -69,7 +69,7 @@ public class DiaryController {
 	@PostMapping("/{id}/restore")
 	public ApiResponse<DiaryResponse> restoreDiary(
 			@PathVariable UUID id,
-			@RequestParam(required = false, defaultValue = "false") boolean replace,
+			@RequestParam(defaultValue = "false") boolean replace,
 			Authentication authentication
 			) {
 		UUID userId = (UUID) authentication.getPrincipal();

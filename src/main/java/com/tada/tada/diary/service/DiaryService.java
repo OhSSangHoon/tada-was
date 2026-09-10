@@ -35,6 +35,7 @@ public class DiaryService {
 	private final StickerRepository stickerRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private static final int NEARBY_DATE_RANGE_DAYS = 3;
+	private static final int DAILY_CREATE_LIMIT = 5;
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	
 	@Transactional
@@ -167,7 +168,7 @@ public class DiaryService {
 		
 		LocalDateTime todayStart = LocalDate.now(KST).atStartOfDay();
 		long todayCount = diaryRepository.countByUserIdAndCreatedAtAfter(userId, todayStart);
-		if (todayCount >= 5) {
+		if (todayCount >= DAILY_CREATE_LIMIT) {
 			return CanCreateResponse.builder()
 					.canCreate(false)
 					.reason("하루 생성 횟수 5회 초과")
