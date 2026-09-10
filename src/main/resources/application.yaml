@@ -95,3 +95,12 @@ jwt:
 
   # Refresh Token 유효시간: 1일
   refresh-expiration: 86400000
+
+supabase:
+  storage:
+    # datasource.url의 postgres.ylwozrffjxrfqebjwbfo 에서 프로젝트 ref를 그대로 가져옴
+    url: ${SUPABASE_STORAGE_URL:https://ylwozrffjxrfqebjwbfo.supabase.co/storage/v1}
+    # Supabase 프로젝트 설정 > API > service_role(Secret) key. 절대 프론트에 노출하지 말 것.
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
+    # Supabase Storage에 미리 만들어둬야 하는 버킷 이름 (기본값: stickers)
+    bucket: ${SUPABASE_STICKER_BUCKET:stickers}
