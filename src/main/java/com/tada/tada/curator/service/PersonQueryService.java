@@ -49,7 +49,7 @@ public class PersonQueryService {
 	private final DiaryPersonRepository diaryPersonRepository;
 	private final MentionCandidateRepository mentionCandidateRepository;
 
-	public List<PersonSummaryResponse> getPersonList(
+	public List<PersonSummaryResponse> getAllPersons(
 			UUID userId
 	) {
 		requireUserId(userId);
@@ -184,27 +184,27 @@ public class PersonQueryService {
 				mentionCount,
 				firstMentionedAt,
 				lastMentionedAt,
-				topOf(
+				getTopEntityStats(
 						stats,
 						MentionEntityType.PLACE
 				),
-				topOf(
+				getTopEntityStats(
 						stats,
 						MentionEntityType.ACTIVITY
 				)
 		);
 	}
 
-	private List<PersonEntityStatResponse> topOf(
+	private List<PersonEntityStatResponse> getTopEntityStats(
 			List<PersonEntityStat> stats,
 			MentionEntityType entityType
 	) {
-		List<PersonEntityStatResponse> top =
+		List<PersonEntityStatResponse> topStats =
 				new ArrayList<>();
 
 		for (PersonEntityStat stat : stats) {
 
-			if (top.size() >= TOP_ENTITY_LIMIT) {
+			if (topStats.size() >= TOP_ENTITY_LIMIT) {
 				break;
 			}
 
@@ -212,7 +212,7 @@ public class PersonQueryService {
 				continue;
 			}
 
-			top.add(
+			topStats.add(
 					new PersonEntityStatResponse(
 							stat.getNormalizedText(),
 							stat.getDiaryCount()
@@ -220,7 +220,7 @@ public class PersonQueryService {
 			);
 		}
 
-		return top;
+		return topStats;
 	}
 
 	private Map<UUID, String> loadStickerUrls(

@@ -25,13 +25,13 @@ public class PersonController {
 	 * 검색 API 없음 — displayName + aliases 로 클라이언트가 필터한다.
 	 */
 	@GetMapping
-	public ApiResponse<List<PersonSummaryResponse>> getPersonList(
+	public ApiResponse<List<PersonSummaryResponse>> getAllPersons(
 			Authentication authentication
 	) {
 		UUID userId = (UUID) authentication.getPrincipal();
 
 		List<PersonSummaryResponse> response =
-				personQueryService.getPersonList(userId);
+				personQueryService.getAllPersons(userId);
 
 		return ApiResponse.success(response);
 	}
