@@ -74,9 +74,6 @@ public class SecurityConfig {
 						// 회원가입/로그인은 당연히 토큰 없이도 호출 가능해야 함
 						.requestMatchers("/api/auth/**").permitAll()
 
-						// n8n이 콜백 보내는 내부 전용 경로 — X-Internal-Secret 헤더로 별도 인증 예정
-						.requestMatchers("/api/internal/**").permitAll()
-						
 						// OAuth2 소셜 로그인 시작 및 콜백 경로는 인증 없이 접근 가능
 						.requestMatchers(
 								"/oauth2/**",
