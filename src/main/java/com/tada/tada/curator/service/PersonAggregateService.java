@@ -174,8 +174,8 @@ public class PersonAggregateService {
 	}
 
 	/*
-	 * 영향 인물 행을 UUID 오름차순으로 잠그고 소유권을 검증한다. (명세 17.3)
-	 * 정렬 순서가 두 트랜잭션 사이의 deadlock 을 막는다.
+	 * 영향 인물 행을 UUID 오름차순으로 잠그고 소유권을 검증한다 (명세 17.3).
+	 * 정렬 순서가 두 트랜잭션 간 deadlock을 막는다.
 	 */
 	private void lockPersonsInOrder(
 			UUID userId,

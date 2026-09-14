@@ -26,32 +26,14 @@ import java.util.Set;
 import java.util.UUID;
 
 /*
- * Curator 후처리 본체.
- *
- * 일기 최종 저장 @Transactional 안에서 동기로 실행된다.
- * 별도 트랜잭션을 열지 않고 상위 저장 트랜잭션에 그대로 참여한다.
- * 여기서 실패하면 Diary, Sticker, Candidate, Relation, DiaryPerson,
- * PersonAggregate 를 포함한 저장 트랜잭션 전체가 rollback 된다.
- *
- * REQUIRES_NEW 를 쓰면 안 된다. 별도 트랜잭션이 되면
- * Curator 가 실패해도 Diary 만 commit 되어 정책이 깨진다.
- *
- * Diary row lock 과 기존 Candidate 확인은 남겨 두되,
- * 단일 트랜잭션 구조에서는 신규 저장 경로에서 실제로 걸리지 않는다.
- * 신규 저장은 diaryId 가 매번 새로 생성되어 동시 경쟁이 없고,
- * 새 Diary 라 hasCandidates 는 항상 false 이기 때문이다.
- * 이 방어가 실제로 필요해지는 시점은 본문 수정 재추출이다. (명세 12)
- *
- * 범위 한정: 이 방식은 "최초 MentionExtractedEvent 의 중복 수신" 만 막는다.
- * 이미 Candidate 가 있는 Diary 는 새 ExtractionResult 가 와도 skip 되므로,
- * 본문 수정 후 재추출까지 포함한 완전한 멱등성은 아니다.
- * 수정 Event 는 Candidate / Relation 의 KEEP·ADD·REMOVE reconcile 구조가
- * 별도로 필요하다. (명세 12)
+ * Curator 후처리 본체. 일기 저장 트랜잭션에 동기 참여한다 (REQUIRES_NEW 금지 — 별도 트랜잭션이면 Diary만 commit된다).
+ * Row lock·기존 Candidate 확인은 신규 저장 경로에서는 안 걸리지만 본문 수정 재추출(명세 12)에 필요해 남겨 둔다.
+ * 범위: "최초 이벤트 중복 수신"만 막는다 — 재추출까지의 완전한 멱등성은 별도 reconcile 구조가 필요하다 (명세 12).
  */
 @Service
 @RequiredArgsConstructor
 public class MentionExtractionProcessor {
-
+	
 	private final DiaryRepository diaryRepository;
 	private final ExtractionResultValidator extractionResultValidator;
 	private final MentionCandidateService mentionCandidateService;
@@ -59,14 +41,10 @@ public class MentionExtractionProcessor {
 	private final DiaryPersonService diaryPersonService;
 	private final PersonAggregateService personAggregateService;
 	private final PersonNormalizer personNormalizer;
-
+	
 	/*
-	 * MANDATORY 다. 상위 트랜잭션이 없으면 즉시 예외가 난다.
-	 *
-	 * REQUIRED 였다면 트랜잭션 밖에서 이벤트가 발행됐을 때
-	 * 여기서 새 트랜잭션을 열어 Curator 데이터만 따로 commit 된다.
-	 * Diary 는 저장 안 됐는데 인물 데이터만 남는 상태가 되므로
-	 * "트랜잭션 밖에서 발행 금지" 를 코드로 강제한다. (명세 17.1)
+	 * MANDATORY다 — 상위 트랜잭션 없으면 즉시 예외. REQUIRED면 트랜잭션 밖 발행 시
+	 * Curator 데이터만 별도 commit되어 Diary 없이 인물 데이터가 남을 수 있다 (명세 17.1).
 	 */
 	@Transactional(
 			propagation = Propagation.MANDATORY
@@ -75,18 +53,16 @@ public class MentionExtractionProcessor {
 			MentionExtractedEvent event
 	) {
 		validateEvent(event);
-
+		
 		Diary diary =
 				findAndValidateDiary(
 						event.diaryId(),
 						event.userId()
 				);
-
+		
 		/*
-		 * Diary row lock 이후에 확인해야 한다.
-		 * lock 전에 검사하면 동시에 들어온 두 Event 가 모두 통과할 수 있다.
-		 *
-		 * 최초 처리 중복만 막는다. 본문 수정 재추출은 reconcile 이 필요하다.
+		 * Diary row lock 이후에 확인한다 — lock 전에 검사하면 동시 진입한 두 이벤트가 모두 통과할 수 있다.
+		 * 최초 처리 중복만 막고, 본문 수정 재추출은 별도 reconcile이 필요하다.
 		 */
 		if (mentionCandidateService
 				.hasCandidates(
@@ -94,15 +70,15 @@ public class MentionExtractionProcessor {
 				)) {
 			return;
 		}
-
+		
 		ExtractionResult extractionResult =
 				event.extractionResult();
-
+		
 		extractionResultValidator.validate(
 				diary.getContent(),
 				extractionResult
 		);
-
+		
 		Map<String, MentionCandidate>
 				personCandidatesByRef =
 				createPersonCandidates(
@@ -110,24 +86,24 @@ public class MentionExtractionProcessor {
 						event.userId(),
 						extractionResult.persons()
 				);
-
+		
 		List<MentionCandidate> personCandidates =
 				new ArrayList<>(
 						personCandidatesByRef.values()
 				);
-
+		
 		createPlaceCandidates(
 				event.diaryId(),
 				extractionResult.places(),
 				personCandidatesByRef
 		);
-
+		
 		createActivityCandidates(
 				event.diaryId(),
 				extractionResult.activities(),
 				personCandidatesByRef
 		);
-
+		
 		Set<UUID> affectedPersonIds =
 				diaryPersonService
 						.reconcileDiaryPersons(
@@ -135,13 +111,13 @@ public class MentionExtractionProcessor {
 								event.userId(),
 								personCandidates
 						);
-
+		
 		personAggregateService.recalculate(
 				event.userId(),
 				affectedPersonIds
 		);
 	}
-
+	
 	private Map<String, MentionCandidate>
 	createPersonCandidates(
 			UUID diaryId,
@@ -149,70 +125,52 @@ public class MentionExtractionProcessor {
 			List<PersonExtraction> persons
 	) {
 		/*
-		 * AI 배열 순서를 그대로 유지한다. (명세 10.1-7)
-		 * HashMap 이면 values() 순서가 비결정적이 된다.
+		 * AI 배열 순서를 유지한다 (명세 10.1-7) — HashMap이면 values() 순서가 비결정적이다.
 		 */
 		Map<String, MentionCandidate>
 				candidatesByRef =
 				new LinkedHashMap<>();
-
+		
 		Set<UUID> assignedPersonIds =
 				new HashSet<>();
-
+		
 		/*
-		 * 같은 extraction 안에서
-		 * 조사/표현 차이만 있는 동일 PERSON ref가
-		 * 이미 할당한 인물을 다시 사용할 수 있도록 한다.
-		 *
-		 * 예:
-		 * p1 = "민수"
-		 * p2 = "민수가"
-		 *
-		 * 둘 모두 normalizedText가 "민수"이면
-		 * 이전 민수 personId 하나만 block에서 해제한다.
-		 *
-		 * 단, 같은 normalizedText에 이미 2명 이상이 할당된 경우에는
-		 * 어떤 인물을 재사용해야 할지 확정할 수 없으므로
-		 * 자동으로 unblock하지 않는다.
+		 * 같은 ExtractionResult 안에서는 normalizedText가 완전히 같은 ref만
+		 * 동일 인물 재사용 예외를 허용한다.
+		 * 정확히 1명의 Person에만 배정된 경우에만 BLOCK을 해제한다.
 		 */
 		Map<String, Set<UUID>>
 				assignedPersonIdsByNormalizedText =
 				new HashMap<>();
-
+		
 		for (PersonExtraction person : persons) {
 			PersonNormalization normalization =
 					personNormalizer.normalize(
 							person.rawText()
 					);
-
+			
 			String normalizedText =
 					normalization.normalizedText();
-
+			
 			Set<UUID> blockedPersonIds =
 					new HashSet<>(
 							assignedPersonIds
 					);
-
-			Set<UUID> sameNormalizedPersonIds =
-					assignedPersonIdsByNormalizedText
-							.get(
-									normalizedText
-							);
-
-			if (sameNormalizedPersonIds != null
-					&& sameNormalizedPersonIds.size()
-					== 1) {
-
-				UUID reusablePersonId =
-						sameNormalizedPersonIds
-								.iterator()
-								.next();
-
+			
+			Set<UUID> reusablePersonIds =
+					findReusablePersonIdsInDiary(
+							normalizedText,
+							assignedPersonIdsByNormalizedText
+					);
+			
+			if (reusablePersonIds.size() == 1) {
 				blockedPersonIds.remove(
-						reusablePersonId
+						reusablePersonIds
+								.iterator()
+								.next()
 				);
 			}
-
+			
 			MentionCandidate candidate =
 					mentionCandidateService
 							.createPersonCandidate(
@@ -221,20 +179,20 @@ public class MentionExtractionProcessor {
 									person.rawText(),
 									blockedPersonIds
 							);
-
+			
 			candidatesByRef.put(
 					person.ref(),
 					candidate
 			);
-
+			
 			UUID matchedPersonId =
 					candidate
 							.getMatchedPersonId();
-
+			
 			assignedPersonIds.add(
 					matchedPersonId
 			);
-
+			
 			assignedPersonIdsByNormalizedText
 					.computeIfAbsent(
 							normalizedText,
@@ -244,10 +202,29 @@ public class MentionExtractionProcessor {
 							matchedPersonId
 					);
 		}
-
+		
 		return candidatesByRef;
 	}
-
+	
+	/*
+	 * 이번 ExtractionResult 안에서 normalizedText가 완전히 같은 ref에
+	 * 이미 배정된 personId만 재사용 후보로 본다.
+	 * 후보가 정확히 1명일 때만 호출부가 BLOCK을 해제한다.
+	 */
+	private Set<UUID> findReusablePersonIdsInDiary(
+			String normalizedText,
+			Map<String, Set<UUID>>
+					assignedPersonIdsByNormalizedText
+	) {
+		return new HashSet<>(
+				assignedPersonIdsByNormalizedText
+						.getOrDefault(
+								normalizedText,
+								Set.of()
+						)
+		);
+	}
+	
 	private void createPlaceCandidates(
 			UUID diaryId,
 			List<PlaceExtraction> places,
@@ -263,13 +240,13 @@ public class MentionExtractionProcessor {
 									place.normalizedText(),
 									MentionEntityType.PLACE
 							);
-
+			
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							place.personRefs(),
 							personCandidatesByRef
 					);
-
+			
 			relationService.createRelations(
 					diaryId,
 					sourceCandidate,
@@ -277,7 +254,7 @@ public class MentionExtractionProcessor {
 			);
 		}
 	}
-
+	
 	private void createActivityCandidates(
 			UUID diaryId,
 			List<ActivityExtraction> activities,
@@ -286,7 +263,7 @@ public class MentionExtractionProcessor {
 	) {
 		for (ActivityExtraction activity
 				: activities) {
-
+			
 			MentionCandidate sourceCandidate =
 					mentionCandidateService
 							.createNonPersonCandidate(
@@ -295,13 +272,13 @@ public class MentionExtractionProcessor {
 									activity.normalizedText(),
 									MentionEntityType.ACTIVITY
 							);
-
+			
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							activity.personRefs(),
 							personCandidatesByRef
 					);
-
+			
 			relationService.createRelations(
 					diaryId,
 					sourceCandidate,
@@ -309,7 +286,7 @@ public class MentionExtractionProcessor {
 			);
 		}
 	}
-
+	
 	private List<MentionCandidate>
 	resolvePersonCandidates(
 			List<String> personRefs,
@@ -318,26 +295,26 @@ public class MentionExtractionProcessor {
 	) {
 		List<MentionCandidate> persons =
 				new ArrayList<>();
-
+		
 		for (String personRef : personRefs) {
 			MentionCandidate candidate =
 					personCandidatesByRef.get(
 							personRef
 					);
-
+			
 			if (candidate == null) {
 				throw new IllegalStateException(
 						"PERSON candidate does not exist for ref: "
 								+ personRef
 				);
 			}
-
+			
 			persons.add(candidate);
 		}
-
+		
 		return persons;
 	}
-
+	
 	private Diary findAndValidateDiary(
 			UUID diaryId,
 			UUID userId
@@ -353,7 +330,7 @@ public class MentionExtractionProcessor {
 												"diary does not exist"
 										)
 						);
-
+		
 		if (!userId.equals(
 				diary.getUserId()
 		)) {
@@ -361,16 +338,16 @@ public class MentionExtractionProcessor {
 					"diary belongs to another user"
 			);
 		}
-
+		
 		if (!diary.isActive()) {
 			throw new IllegalStateException(
 					"diary must be active"
 			);
 		}
-
+		
 		return diary;
 	}
-
+	
 	private void validateEvent(
 			MentionExtractedEvent event
 	) {
@@ -379,19 +356,19 @@ public class MentionExtractionProcessor {
 					"event must not be null"
 			);
 		}
-
+		
 		if (event.diaryId() == null) {
 			throw new IllegalArgumentException(
 					"diaryId must not be null"
 			);
 		}
-
+		
 		if (event.userId() == null) {
 			throw new IllegalArgumentException(
 					"userId must not be null"
 			);
 		}
-
+		
 		if (event.extractionResult() == null) {
 			throw new IllegalArgumentException(
 					"extractionResult must not be null"

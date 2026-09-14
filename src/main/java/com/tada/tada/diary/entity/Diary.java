@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -15,6 +16,8 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Diary {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Id
     @GeneratedValue
@@ -57,7 +60,7 @@ public class Diary {
         this.weather = weather;
         this.content = content;
         this.status = DiaryStatus.ACTIVE;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(KST);
     }
 
     public void update(String title,String weather, String content) {

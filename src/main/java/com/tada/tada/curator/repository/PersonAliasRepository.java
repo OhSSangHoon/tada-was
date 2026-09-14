@@ -15,4 +15,9 @@ public interface PersonAliasRepository extends JpaRepository<PersonAlias, UUID> 
 	);
 	
 	List<PersonAlias> findAllByOwnerUserId(UUID ownerUserId);
+
+	List<PersonAlias> findAllByOwnerUserIdAndPersonIdIn(
+			UUID ownerUserId,
+			Collection<UUID> personIds
+	);
 }

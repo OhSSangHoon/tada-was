@@ -156,12 +156,13 @@ class PersonResolverServiceTest {
 						)
 				)
 		);
-
+		
 		when(personCreationGuard.findReusablePerson(
 				userId,
 				"민혁상",
 				"민혁상",
-				Set.of()
+				Set.of(),
+				Set.of(personId)
 		)).thenReturn(
 				Optional.of(personId)
 		);
@@ -200,7 +201,11 @@ class PersonResolverServiceTest {
 						java.util.List.of(candidateId)
 				));
 		when(personCreationGuard.findReusablePerson(
-				userId, "민서", "민서", Set.of()
+				userId,
+				"민서",
+				"민서",
+				Set.of(),
+				Set.of(candidateId)
 		)).thenReturn(Optional.of(unrelatedId));
 		when(memoryPersonRepository.save(any()))
 				.thenAnswer(invocation -> invocation.getArgument(0));

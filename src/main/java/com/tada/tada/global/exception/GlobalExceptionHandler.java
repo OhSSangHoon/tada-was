@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
 	* 프론트가 JSON 파싱 실패로 또 다른 에러를 겪게 된다.
 	* */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiResponse<Void>> handleEception(Exception e){
+	public ResponseEntity<ApiResponse<Void>> handleException(Exception e){
 		log.error("예상하지 못한 서버 오류", e);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
