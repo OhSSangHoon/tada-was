@@ -128,11 +128,21 @@ public class PersonMatchingService {
 						);
 
 		List<PersonAlias> aliases =
+				new ArrayList<>(
+						personAliasRepository
+								.findAllByOwnerUserIdAndNormalizedTextIn(
+										userId,
+										exactMatchCandidates
+								)
+				);
+
+		aliases.addAll(
 				personAliasRepository
-						.findAllByOwnerUserIdAndNormalizedTextIn(
+						.findAllByOwnerUserIdAndAliasTextIn(
 								userId,
 								exactMatchCandidates
-						);
+						)
+		);
 
 		/*
 		 * exactMatchCandidates(safeMatchCandidates)는 [원문, 안전 조사 제거 결과] 순서로 들어오며
@@ -162,13 +172,20 @@ public class PersonMatchingService {
 			}
 
 			for (PersonAlias alias : aliases) {
-				if (!blockedPersonIds.contains(
+				if (blockedPersonIds.contains(
 						alias.getPersonId()
-				)
-						&& candidate.equals(
-						alias.getNormalizedText()
 				)) {
+					continue;
+				}
 
+				List<String> safeAliasCandidates =
+						personNormalizer
+								.normalize(
+										alias.getAliasText()
+								)
+								.safeMatchCandidates();
+
+				if (safeAliasCandidates.contains(candidate)) {
 					matchedPersonIds.add(
 							alias.getPersonId()
 					);
@@ -236,7 +253,7 @@ public class PersonMatchingService {
 			addNormalizedName(
 					normalizedNamesByPerson,
 					alias.getPersonId(),
-					alias.getNormalizedText()
+					alias.getAliasText()
 			);
 		}
 
