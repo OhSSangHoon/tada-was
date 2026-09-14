@@ -29,6 +29,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
     // Swagger (springdoc-openapi)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
     //pgvector (Postgres vector type을 java에서 다루기 위한 라이브러리)
@@ -46,5 +47,20 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'manual'
+    }
+}
+
+// 실제 n8n 웹훅 + 실제 Supabase Storage를 호출하는 수동 통합 테스트 전용 태스크.
+// 기본 test 태스크에서는 제외되고, 필요할 때만 `./gradlew manualTest`로 실행한다.
+tasks.register('manualTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'manual'
+    }
+    testLogging {
+        showStandardStreams = true
+    }
 }

@@ -2,6 +2,7 @@ package com.tada.tada.global.client;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -38,6 +39,7 @@ public class SupabaseStorageClient {
 	private final String bucket;
 
 	public SupabaseStorageClient(
+			RestClient.Builder restClientBuilder,
 			@Value("${supabase.storage.url}") String storageUrl,
 			@Value("${supabase.storage.service-role-key}") String serviceRoleKey,
 			@Value("${supabase.storage.bucket}") String bucket
@@ -45,27 +47,23 @@ public class SupabaseStorageClient {
 		this.storageUrl = storageUrl;
 		this.serviceRoleKey = serviceRoleKey;
 		this.bucket = bucket;
-		this.restClient = RestClient.create();
+		this.restClient = restClientBuilder.baseUrl(storageUrl).build();
 	}
 
 	/**
 	 * 이미지 바이트(JPEG)를 Supabase Storage에 업로드하고 영구 public URL을 반환한다.
 	 */
 	public String uploadFromBytes(byte[] imageBytes, String objectName) {
-		// TODO 1. restClient.put()으로 위 Storage REST API 호출
-		//         .uri("{storageUrl}/object/{bucket}/{objectName}", storageUrl, bucket, objectName)
-		//         .header("Authorization", "Bearer " + serviceRoleKey)
-		//         .header("apikey", serviceRoleKey)
-		//         .header("x-upsert", "true")   // 같은 objectName 재업로드(재생성) 허용
-		//         .contentType(MediaType.IMAGE_JPEG)
-		//         .body(imageBytes)
-		//         .retrieve()
-		//         .toBodilessEntity();
+		restClient.put()
+				.uri("/object/{bucket}/{objectName}", bucket, objectName)
+				.header("Authorization", "Bearer " + serviceRoleKey)
+				.header("apikey", serviceRoleKey)
+				.header("x-upsert", "true")
+				.contentType(MediaType.IMAGE_JPEG)
+				.body(imageBytes)
+				.retrieve()
+				.toBodilessEntity();
 
-		// TODO 2. return storageUrl + "/object/public/" + bucket + "/" + objectName;
-
-		throw new UnsupportedOperationException(
-				"TODO: SupabaseStorageClient.uploadFromBytes 구현"
-		);
+		return storageUrl + "/object/public/" + bucket + "/" + objectName;
 	}
 }
