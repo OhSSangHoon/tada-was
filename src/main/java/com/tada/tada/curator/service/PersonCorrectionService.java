@@ -138,17 +138,12 @@ public class PersonCorrectionService {
 		}
 
 		/*
-		 * Alias 존재 확인/저장 전에 관련 기존 Person들을 동일한 UUID 순서로 잠근다.
+		 * 앞선 조회는 요청 검증과 대상 확정을 위한 것이고,
+		 * 여기서는 Alias 저장 전 동시성 제어를 위해 Person을 잠근 뒤
+		 * lock 시점의 존재·소유권을 다시 확인한다.
 		 *
-		 * 서로 다른 Diary에서 같은 Person으로 동시에 교정될 경우
-		 * 두 요청이 모두 Alias exists=false를 본 뒤 INSERT하여
-		 * UNIQUE 제약 위반으로 한 요청이 실패하는 경쟁을 막는다.
-		 *
-		 * PersonAggregateService도 UUID 오름차순으로 Person을 잠그므로
-		 * 동일한 순서를 유지해 deadlock 가능성을 낮춘다.
-		 *
-		 * 새 Person은 현재 트랜잭션에서 생성되어 다른 트랜잭션이 아직 참조할 수 없으므로
-		 * 기존 target을 선택한 경우에만 target까지 잠근다.
+		 * 관련 Person은 UUID 순서로 잠가 Alias INSERT 경쟁과
+		 * lock 순서 불일치로 인한 deadlock 가능성을 줄인다.
 		 */
 		List<UUID> personIdsToLock =
 				new ArrayList<>();

@@ -144,6 +144,26 @@ public class PersonMatchingService {
 						)
 		);
 
+		Map<UUID, Set<String>> safeAliasCandidatesByPerson =
+				new LinkedHashMap<>();
+
+		for (PersonAlias alias : aliases) {
+			if (blockedPersonIds.contains(alias.getPersonId())) {
+				continue;
+			}
+
+			safeAliasCandidatesByPerson
+					.computeIfAbsent(
+							alias.getPersonId(),
+							ignored -> new LinkedHashSet<>()
+					)
+					.addAll(
+							personNormalizer
+									.normalize(alias.getAliasText())
+									.safeMatchCandidates()
+					);
+		}
+
 		/*
 		 * exactMatchCandidates(safeMatchCandidates)는 [원문, 안전 조사 제거 결과] 순서로 들어오며
 		 * 애매한 조사 제거형은 포함하지 않는다 (포함하면 "김성은"과 "김성"처럼 다른 사람이 자동으로
@@ -171,23 +191,12 @@ public class PersonMatchingService {
 				}
 			}
 
-			for (PersonAlias alias : aliases) {
-				if (blockedPersonIds.contains(
-						alias.getPersonId()
-				)) {
-					continue;
-				}
+			for (Map.Entry<UUID, Set<String>> entry
+					: safeAliasCandidatesByPerson.entrySet()) {
 
-				List<String> safeAliasCandidates =
-						personNormalizer
-								.normalize(
-										alias.getAliasText()
-								)
-								.safeMatchCandidates();
-
-				if (safeAliasCandidates.contains(candidate)) {
+				if (entry.getValue().contains(candidate)) {
 					matchedPersonIds.add(
-							alias.getPersonId()
+							entry.getKey()
 					);
 				}
 			}
