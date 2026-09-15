@@ -64,10 +64,7 @@ class PersonRenameServiceTest {
 
 		when(
 				memoryPersonRepository
-						.findByIdAndUserId(
-								personId,
-								userId
-						)
+						.findByIdForUpdate(personId)
 		).thenReturn(
 				Optional.of(person)
 		);
@@ -129,5 +126,8 @@ class PersonRenameServiceTest {
 				"엄마",
 				savedAlias.getNormalizedText()
 		);
+
+		verify(memoryPersonRepository)
+				.findByIdForUpdate(personId);
 	}
 }

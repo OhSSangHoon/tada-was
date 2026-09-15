@@ -40,16 +40,20 @@ public class PersonRenameService {
 
 		MemoryPerson person =
 				memoryPersonRepository
-						.findByIdAndUserId(
-								personId,
-								userId
-						)
+						.findByIdForUpdate(personId)
 						.orElseThrow(
 								() -> new CustomException(
 										"인물을 찾을 수 없습니다.",
 										404
 								)
 						);
+
+		if (!userId.equals(person.getUserId())) {
+			throw new CustomException(
+					"인물을 찾을 수 없습니다.",
+					404
+			);
+		}
 
 		String newDisplayName =
 				form.getDisplayName().strip();
