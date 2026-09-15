@@ -1,9 +1,16 @@
 package com.tada.tada.global.client;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriUtils;
 
 /*
  * [담당: 상훈] — 스티커 이미지 바이트를 Supabase Storage에 업로드하고 영구 public URL을 돌려준다.
@@ -38,34 +45,49 @@ public class SupabaseStorageClient {
 	private final String bucket;
 
 	public SupabaseStorageClient(
+			RestClient.Builder restClientBuilder,
 			@Value("${supabase.storage.url}") String storageUrl,
 			@Value("${supabase.storage.service-role-key}") String serviceRoleKey,
 			@Value("${supabase.storage.bucket}") String bucket
 	) {
-		this.storageUrl = storageUrl;
+		this.storageUrl = trimTrailingSlash(storageUrl);
 		this.serviceRoleKey = serviceRoleKey;
 		this.bucket = bucket;
-		this.restClient = RestClient.create();
+		this.restClient = restClientBuilder.build();
 	}
 
 	/**
 	 * 이미지 바이트(JPEG)를 Supabase Storage에 업로드하고 영구 public URL을 반환한다.
 	 */
 	public String uploadFromBytes(byte[] imageBytes, String objectName) {
-		// TODO 1. restClient.put()으로 위 Storage REST API 호출
-		//         .uri("{storageUrl}/object/{bucket}/{objectName}", storageUrl, bucket, objectName)
-		//         .header("Authorization", "Bearer " + serviceRoleKey)
-		//         .header("apikey", serviceRoleKey)
-		//         .header("x-upsert", "true")   // 같은 objectName 재업로드(재생성) 허용
-		//         .contentType(MediaType.IMAGE_JPEG)
-		//         .body(imageBytes)
-		//         .retrieve()
-		//         .toBodilessEntity();
+		String encodedBucket = UriUtils.encodePathSegment(bucket, StandardCharsets.UTF_8);
+		String encodedObjectName = encodeObjectPath(objectName);
 
-		// TODO 2. return storageUrl + "/object/public/" + bucket + "/" + objectName;
+		restClient.put()
+				.uri(URI.create(storageUrl + "/object/" + encodedBucket + "/" + encodedObjectName))
+				.header("Authorization", "Bearer " + serviceRoleKey)
+				.header("apikey", serviceRoleKey)
+				.header("x-upsert", "true")
+				.contentType(MediaType.IMAGE_JPEG)
+				.body(imageBytes)
+				.retrieve()
+				.toBodilessEntity();
 
-		throw new UnsupportedOperationException(
-				"TODO: SupabaseStorageClient.uploadFromBytes 구현"
-		);
+		return storageUrl + "/object/public/" + encodedBucket + "/" + encodedObjectName;
+	}
+
+	/*
+	 * objectName은 "userId/diaryId.jpg"처럼 '/'로 구분된 경로일 수 있으므로,
+	 * 세그먼트 단위로 인코딩해 '/'는 구분자로 보존하고 나머지 특수문자만 percent-encoding한다.
+	 * 업로드 요청 URI와 반환 public URL이 동일한 인코딩 결과를 공유해야 경로가 일치한다.
+	 */
+	private static String encodeObjectPath(String objectName) {
+		return Arrays.stream(objectName.split("/", -1))
+				.map(segment -> UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8))
+				.collect(Collectors.joining("/"));
+	}
+
+	private static String trimTrailingSlash(String url) {
+		return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
 	}
 }

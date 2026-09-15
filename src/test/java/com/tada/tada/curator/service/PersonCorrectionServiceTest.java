@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PersonCorrectionServiceTest {
-	
+
 	private MentionCandidateRepository mentionCandidateRepository;
 	private MemoryPersonRepository memoryPersonRepository;
 	private PersonAliasRepository personAliasRepository;
@@ -35,32 +35,32 @@ class PersonCorrectionServiceTest {
 	private DiaryPersonService diaryPersonService;
 	private PersonAggregateService personAggregateService;
 	private PersonNormalizer personNormalizer;
-	
+
 	private PersonCorrectionService personCorrectionService;
-	
+
 	@BeforeEach
 	void setUp() {
 		mentionCandidateRepository =
 				Mockito.mock(MentionCandidateRepository.class);
-		
+
 		memoryPersonRepository =
 				Mockito.mock(MemoryPersonRepository.class);
-		
+
 		personAliasRepository =
 				Mockito.mock(PersonAliasRepository.class);
-		
+
 		diaryRepository =
 				Mockito.mock(DiaryRepository.class);
-		
+
 		diaryPersonService =
 				Mockito.mock(DiaryPersonService.class);
-		
+
 		personAggregateService =
 				Mockito.mock(PersonAggregateService.class);
-		
+
 		personNormalizer =
 				Mockito.mock(PersonNormalizer.class);
-		
+
 		personCorrectionService =
 				new PersonCorrectionService(
 						mentionCandidateRepository,
@@ -72,24 +72,24 @@ class PersonCorrectionServiceTest {
 						personNormalizer
 				);
 	}
-	
+
 	@Test
 	void Candidate를_다른_사람으로_교정하면_Alias와_DiaryPerson과_Aggregate를_갱신한다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
-		
+
 		MemoryPerson oldPerson =
 				MemoryPerson.create(
 						userId,
 						"민수"
 				);
-		
+
 		MemoryPerson targetPerson =
 				MemoryPerson.create(
 						userId,
 						"민혁"
 				);
-		
+
 		MentionCandidate candidate =
 				MentionCandidate.create(
 						diaryId,
@@ -99,17 +99,17 @@ class PersonCorrectionServiceTest {
 						MentionCandidateStatus.CONFIRMED,
 						oldPerson.getId()
 				);
-		
+
 		Diary diary =
 				Mockito.mock(Diary.class);
-		
+
 		PersonCorrectionForm form =
 				new PersonCorrectionForm();
-		
+
 		form.setTargetPersonId(
 				targetPerson.getId()
 		);
-		
+
 		when(
 				mentionCandidateRepository
 						.findDiaryIdById(
@@ -118,7 +118,7 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Optional.of(diaryId)
 		);
-		
+
 		when(
 				diaryRepository
 						.findByIdForUpdate(
@@ -127,13 +127,13 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Optional.of(diary)
 		);
-		
+
 		when(diary.getUserId())
 				.thenReturn(userId);
-		
+
 		when(diary.isActive())
 				.thenReturn(true);
-		
+
 		when(
 				mentionCandidateRepository
 						.findByIdForUpdate(
@@ -142,7 +142,7 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Optional.of(candidate)
 		);
-		
+
 		when(
 				memoryPersonRepository
 						.findByIdAndUserId(
@@ -152,7 +152,7 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Optional.of(oldPerson)
 		);
-		
+
 		when(
 				memoryPersonRepository
 						.findByIdAndUserId(
@@ -162,7 +162,25 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Optional.of(targetPerson)
 		);
-		
+
+		when(
+				memoryPersonRepository
+						.findByIdForUpdate(
+								oldPerson.getId()
+						)
+		).thenReturn(
+				Optional.of(oldPerson)
+		);
+
+		when(
+				memoryPersonRepository
+						.findByIdForUpdate(
+								targetPerson.getId()
+						)
+		).thenReturn(
+				Optional.of(targetPerson)
+		);
+
 		when(
 				personAliasRepository
 						.existsByOwnerUserIdAndPersonIdAndAliasText(
@@ -171,14 +189,14 @@ class PersonCorrectionServiceTest {
 								"민혁이랑"
 						)
 		).thenReturn(false);
-		
+
 		when(
 				personNormalizer
 						.normalizeName(
 								"민혁이랑"
 						)
 		).thenReturn("민혁");
-		
+
 		when(
 				mentionCandidateRepository
 						.findAllByDiaryId(
@@ -187,7 +205,7 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				List.of(candidate)
 		);
-		
+
 		when(
 				diaryPersonService
 						.reconcileDiaryPersons(
@@ -198,29 +216,39 @@ class PersonCorrectionServiceTest {
 		).thenReturn(
 				Set.of(targetPerson.getId())
 		);
-		
+
 		personCorrectionService.correctPerson(
 				userId,
 				oldPerson.getId(),
 				candidate.getId(),
 				form
 		);
-		
+
 		assertEquals(
 				targetPerson.getId(),
 				candidate.getMatchedPersonId()
 		);
-		
+
+		verify(memoryPersonRepository)
+				.findByIdForUpdate(
+						oldPerson.getId()
+				);
+
+		verify(memoryPersonRepository)
+				.findByIdForUpdate(
+						targetPerson.getId()
+				);
+
 		verify(personAliasRepository)
 				.save(any(PersonAlias.class));
-		
+
 		verify(diaryPersonService)
 				.reconcileDiaryPersons(
 						diaryId,
 						userId,
 						List.of(candidate)
 				);
-		
+
 		verify(personAggregateService)
 				.recalculate(
 						Mockito.eq(userId),
