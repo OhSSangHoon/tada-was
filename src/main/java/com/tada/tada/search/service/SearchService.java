@@ -1,5 +1,7 @@
 package com.tada.tada.search.service;
 
+import com.tada.tada.diary.entity.Sticker;
+import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
@@ -10,7 +12,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /*
 	SearchService - RAG 검색 비즈니스 로직
@@ -34,6 +39,9 @@ public class SearchService {
 	
 	// VoyageAIEmbeddingService 주입 - 텍스트 -> 벡터 변환 담당
 	private final VoyageAIEmbeddingService voyageAIEmbeddingService;
+	
+	// 검색 결과에 스티커 표시 담당
+	private final StickerRepository stickerRepository;
 	
 	/*
 		자연어 검색으로 유사한 일기 페이지네이션과 함께 검색
@@ -71,13 +79,27 @@ public class SearchService {
 		
 		Page<SearchResultProjection> diaryPage = searchRepository.findSimilarDiariesWithPagination(userId, embeddingString, pageable);
 		
-		return diaryPage.map(this::toSearchResultResponse);
+		// 조회된 일기의 스티커를 한 번에 조회 (항목마다 쿼리 안하게 배치)
+		List<UUID> diaryIds = diaryPage.getContent().stream()
+				.map(SearchResultProjection::getId)
+				.toList();
+		
+		Map<UUID, String> stickerImageUrlByDiaryId = diaryIds.isEmpty()
+				? Map.of()
+				: stickerRepository.findByDiaryIdIn(diaryIds).stream()
+				.collect(Collectors.toMap(Sticker::getDiaryId, Sticker::getImageUrl));
+		
+		return diaryPage.map(projection -> toSearchResultResponse(projection, stickerImageUrlByDiaryId));
 	}
 	
-	private SearchResultResponse toSearchResultResponse(SearchResultProjection projection) {
+	private SearchResultResponse toSearchResultResponse(
+			SearchResultProjection projection,
+			Map<UUID, String> stickerImageUrlByDiaryId
+	) {
 		return new SearchResultResponse(
 				projection.getId(), projection.getEntryDate(), projection.getTitle(),
-				projection.getWeather(), projection.getContent(), projection.getCreatedAt()
+				projection.getWeather(), projection.getContent(), projection.getCreatedAt(),
+				stickerImageUrlByDiaryId.get(projection.getId())	// 스티커 없으면 null
 		);
 	}
 }
