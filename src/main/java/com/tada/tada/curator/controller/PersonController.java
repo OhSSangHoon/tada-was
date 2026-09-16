@@ -4,19 +4,24 @@ import com.tada.tada.curator.dto.PersonCorrectionForm;
 import com.tada.tada.curator.dto.PersonDetailResponse;
 import com.tada.tada.curator.dto.PersonRenameForm;
 import com.tada.tada.curator.dto.PersonSummaryResponse;
+import com.tada.tada.curator.dto.PersonTimelinePageResponse;
+import com.tada.tada.curator.dto.PersonTimelineSort;
 import com.tada.tada.curator.service.PersonCorrectionService;
 import com.tada.tada.curator.service.PersonQueryService;
 import com.tada.tada.curator.service.PersonRenameService;
 import com.tada.tada.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +58,35 @@ public class PersonController {
 
 		PersonDetailResponse response =
 				personQueryService.getPersonDetail(userId, id);
+
+		return ApiResponse.success(response);
+	}
+
+	@GetMapping("/{personId}/timeline")
+	public ApiResponse<PersonTimelinePageResponse> getPersonTimeline(
+			@PathVariable UUID personId,
+			@RequestParam(
+					defaultValue = "LATEST"
+			) PersonTimelineSort sort,
+			@RequestParam(
+					required = false
+			)
+			@DateTimeFormat(
+					iso = DateTimeFormat.ISO.DATE
+			)
+			LocalDate cursor,
+			Authentication authentication
+	) {
+		UUID userId =
+				(UUID) authentication.getPrincipal();
+
+		PersonTimelinePageResponse response =
+				personQueryService.getPersonTimeline(
+						userId,
+						personId,
+						sort,
+						cursor
+				);
 
 		return ApiResponse.success(response);
 	}
