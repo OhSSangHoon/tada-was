@@ -2,22 +2,24 @@ package com.tada.tada.curator.controller;
 
 import com.tada.tada.curator.dto.PersonCorrectionForm;
 import com.tada.tada.curator.dto.PersonDetailResponse;
+import com.tada.tada.curator.dto.PersonRenameForm;
 import com.tada.tada.curator.dto.PersonSummaryResponse;
+import com.tada.tada.curator.dto.PersonTimelinePageResponse;
+import com.tada.tada.curator.dto.PersonTimelineSort;
 import com.tada.tada.curator.service.PersonCorrectionService;
 import com.tada.tada.curator.service.PersonQueryService;
+import com.tada.tada.curator.service.PersonRenameService;
 import com.tada.tada.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import com.tada.tada.curator.dto.PersonTimelinePageResponse;
-import com.tada.tada.curator.dto.PersonTimelineSort;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +32,7 @@ public class PersonController {
 
 	private final PersonQueryService personQueryService;
 	private final PersonCorrectionService personCorrectionService;
+	private final PersonRenameService personRenameService;
 
 	/*
 	 * 검색 API 없음 — displayName + aliases 로 클라이언트가 필터한다.
@@ -101,6 +104,23 @@ public class PersonController {
 				userId,
 				personId,
 				candidateId,
+				form
+		);
+
+		return ApiResponse.success(null);
+	}
+
+	@PatchMapping("/{personId}")
+	public ApiResponse<Void> renamePerson(
+			@PathVariable UUID personId,
+			@RequestBody PersonRenameForm form,
+			Authentication authentication
+	) {
+		UUID userId = (UUID) authentication.getPrincipal();
+
+		personRenameService.renamePerson(
+				userId,
+				personId,
 				form
 		);
 
