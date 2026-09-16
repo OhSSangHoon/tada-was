@@ -32,16 +32,18 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	   @return 유사도순 일기 Page 객체
 	 */
 	@Query(value = """
-       SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
-             d.weather AS weather, d.content AS content, d.created_at AS createdAt
-       FROM diaries d
-       WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-       ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
-    """,
+			   SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
+			         d.weather AS weather, d.content AS content, d.created_at AS createdAt,
+			         s.image_url AS stickerImageUrl
+			   FROM diaries d
+			   LEFT JOIN stickers s ON s.diary_id = d.id
+			   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+			   ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
+			""",
 			countQuery = """
-                SELECT COUNT(d.id) FROM diaries d
-                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                """,
+					SELECT COUNT(d.id) FROM diaries d
+					WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+					""",
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesWithPagination(
 			@Param("userId") UUID userId,

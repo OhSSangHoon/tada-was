@@ -1,7 +1,5 @@
 package com.tada.tada.search.service;
 
-import com.tada.tada.diary.entity.Sticker;
-import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
@@ -30,19 +28,16 @@ class SearchServiceTest {
 	
 	private SearchRepository searchRepository;
 	private VoyageAIEmbeddingService voyageAIEmbeddingService;
-	private StickerRepository stickerRepository;
 	private SearchService searchService;
 	
 	@BeforeEach
 	void setUp() {
 		searchRepository = Mockito.mock(SearchRepository.class);
 		voyageAIEmbeddingService = Mockito.mock(VoyageAIEmbeddingService.class);
-		stickerRepository = Mockito.mock(StickerRepository.class);
 		
 		searchService = new SearchService(
 				searchRepository,
-				voyageAIEmbeddingService,
-				stickerRepository
+				voyageAIEmbeddingService
 		);
 	}
 	
@@ -107,7 +102,8 @@ class SearchServiceTest {
 				"좋은 하루",
 				"맑음",
 				"오늘은 기분이 좋았다",
-				LocalDateTime.of(2026, 8, 1, 21, 0)
+				LocalDateTime.of(2026, 8, 1, 21, 0),
+				"https://cdn.example.com/stickers/1.png"
 		);
 		
 		Page<SearchResultProjection> projectionPage =
@@ -118,11 +114,6 @@ class SearchServiceTest {
 				anyString(),
 				eq(pageable)
 		)).thenReturn(projectionPage);
-		
-		// 이 일기에 스티커가 있는 상황을 스텁
-		Sticker sticker = createSticker(diaryId, "https://cdn.example.com/stickers/1.png");
-		when(stickerRepository.findByDiaryIdIn(List.of(diaryId)))
-				.thenReturn(List.of(sticker));
 		
 		Page<SearchResultResponse> result =
 				searchService.search(userId, "기분 좋은 날", pageable);
@@ -149,13 +140,15 @@ class SearchServiceTest {
 				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
 		
 		UUID diaryId = UUID.randomUUID();
+		// LEFT JOIN에서 매칭되는 스티커가 없는 경우 -> stickerImageUrl null
 		SearchResultProjection projection = createProjection(
 				diaryId,
 				LocalDate.of(2026, 8, 1),
 				"좋은 하루",
 				"맑음",
 				"오늘은 기분이 좋았다",
-				LocalDateTime.of(2026, 8, 1, 21, 0)
+				LocalDateTime.of(2026, 8, 1, 21, 0),
+				null
 		);
 		
 		Page<SearchResultProjection> projectionPage =
@@ -164,10 +157,6 @@ class SearchServiceTest {
 		when(searchRepository.findSimilarDiariesWithPagination(
 				eq(userId), anyString(), eq(pageable)
 		)).thenReturn(projectionPage);
-		
-		// 예외적으로 스티커가 하나도 안 잡히는 상황(과거 데이터 등)
-		when(stickerRepository.findByDiaryIdIn(List.of(diaryId)))
-				.thenReturn(List.of());
 		
 		Page<SearchResultResponse> result =
 				searchService.search(userId, "기분 좋은 날", pageable);
@@ -181,7 +170,8 @@ class SearchServiceTest {
 			String title,
 			String weather,
 			String content,
-			LocalDateTime createdAt
+			LocalDateTime createdAt,
+			String stickerImageUrl
 	) {
 		SearchResultProjection projection = Mockito.mock(SearchResultProjection.class);
 		
@@ -191,16 +181,8 @@ class SearchServiceTest {
 		when(projection.getWeather()).thenReturn(weather);
 		when(projection.getContent()).thenReturn(content);
 		when(projection.getCreatedAt()).thenReturn(createdAt);
+		when(projection.getStickerImageUrl()).thenReturn(stickerImageUrl);
 		
 		return projection;
-	}
-	
-	private Sticker createSticker(UUID diaryId, String imageUrl) {
-		Sticker sticker = Mockito.mock(Sticker.class);
-		
-		when(sticker.getDiaryId()).thenReturn(diaryId);
-		when(sticker.getImageUrl()).thenReturn(imageUrl);
-		
-		return sticker;
 	}
 }
