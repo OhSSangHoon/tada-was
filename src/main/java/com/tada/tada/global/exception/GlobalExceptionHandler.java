@@ -16,6 +16,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -34,6 +35,22 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 				.status(HttpStatus.NOT_FOUND)
 				.body(ApiResponse.error("요청하신 경로를 찾을 수 없습니다."));
+	}
+
+	/*
+	* 경로는 맞는데 HTTP 메서드가 틀렸을 때(GET으로 POST 전용 API를 호출하는 등) 발생.
+	* 이것도 catch-all(Exception.class)에 걸리면 500으로 잘못 응답하고 스택트레이스만 남아서
+	* 원인 파악이 어려워지므로, 여기서 먼저 잡아 405로 정직하게 응답한다.
+	* */
+	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleHttpRequestMethodNotSupportedException(
+			HttpRequestMethodNotSupportedException e
+	) {
+		return ResponseEntity
+				.status(HttpStatus.METHOD_NOT_ALLOWED)
+				.body(ApiResponse.error(
+						"지원하지 않는 요청 방식입니다. (" + e.getMethod() + ")"
+				));
 	}
 	/*
 	* 우리가 직접 만든 CustomException을 처리.
