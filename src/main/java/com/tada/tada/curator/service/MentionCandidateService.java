@@ -103,6 +103,54 @@ public class MentionCandidateService {
 		);
 	}
 
+	MentionCandidate createPersonCandidateForMatchedPerson(
+			UUID diaryId,
+			String rawText,
+			UUID matchedPersonId
+	) {
+		if (diaryId == null) {
+			throw new IllegalArgumentException(
+					"diaryId must not be null"
+			);
+		}
+
+		if (rawText == null
+				|| rawText.isBlank()) {
+			throw new IllegalArgumentException(
+					"rawText must not be blank"
+			);
+		}
+
+		if (matchedPersonId == null) {
+			throw new IllegalArgumentException(
+					"matchedPersonId must not be null"
+			);
+		}
+
+		PersonNormalization normalization =
+				personNormalizer.normalize(rawText);
+
+		if (normalization.normalizedText().isBlank()) {
+			throw new IllegalArgumentException(
+					"person normalizedText must not be blank"
+			);
+		}
+
+		MentionCandidate candidate =
+				MentionCandidate.create(
+						diaryId,
+						rawText,
+						normalization.normalizedText(),
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						matchedPersonId
+				);
+
+		return mentionCandidateRepository.save(
+				candidate
+		);
+	}
+
 	public MentionCandidate createNonPersonCandidate(
 			UUID diaryId,
 			String rawText,

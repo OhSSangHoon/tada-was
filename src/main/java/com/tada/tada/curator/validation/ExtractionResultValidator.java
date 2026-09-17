@@ -89,6 +89,13 @@ public class ExtractionResultValidator {
 	private static final Set<String> COUNT_UNITS =
 			Set.of("명", "분", "사람", "이서", "커플", "쌍");
 
+	private static final Set<String>
+			COUNT_EXPRESSION_PERSON_EXCEPTIONS =
+			Set.of(
+					"한이서",
+					"세명"
+			);
+
 	private final PersonNormalizer personNormalizer;
 
 	public ExtractionResultValidator(
@@ -488,6 +495,17 @@ public class ExtractionResultValidator {
 
 	/** "여러 명", "몇 명", "세 명", "3명", "두 사람" */
 	private boolean isCountExpression(String compact) {
+
+		/*
+		 * 실제 이름과 수량 표현 형태가 충돌하는 최소 예외.
+		 * "둘이서", "셋이서", "한분", "이분" 등의
+		 * 일반적인 수량/지칭 표현은 기존대로 차단한다.
+		 */
+		if (COUNT_EXPRESSION_PERSON_EXCEPTIONS
+				.contains(compact)) {
+			return false;
+		}
+
 		for (String unit : COUNT_UNITS) {
 
 			String quantity =

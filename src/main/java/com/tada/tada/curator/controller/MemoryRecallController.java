@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
@@ -20,7 +21,9 @@ public class MemoryRecallController {
 
 	@GetMapping
 	public ApiResponse<MemoryRecallResponse> getMemoryRecall(
-			Authentication authentication
+			Authentication authentication,
+			@RequestParam(required = false)
+			UUID excludeDiaryId
 	) {
 		UUID userId =
 				(UUID) authentication
@@ -29,7 +32,8 @@ public class MemoryRecallController {
 		MemoryRecallResponse response =
 				memoryRecallService
 						.getMemoryRecall(
-								userId
+								userId,
+								excludeDiaryId
 						);
 
 		return ApiResponse.success(response);

@@ -283,17 +283,8 @@ public class PersonCorrectionService {
 			);
 		}
 
-		String requestedName =
-				form.getNewDisplayName().strip();
-
-		PersonNormalization normalization =
-				personNormalizer.normalize(
-						requestedName
-				);
-
 		String displayName =
-				normalization
-						.displayNameCandidate()
+				form.getNewDisplayName()
 						.strip();
 
 		if (displayName.isBlank()) {

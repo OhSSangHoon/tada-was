@@ -1,38 +1,38 @@
 package com.tada.tada.curator.service;
 
+import com.tada.tada.curator.dto.MemoryRecallResponse;
 import com.tada.tada.curator.dto.MemoryRecallType;
+import com.tada.tada.curator.entity.MentionCandidate;
+import com.tada.tada.curator.entity.MentionCandidateStatus;
+import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.repository.DiaryPersonRepository;
+import com.tada.tada.curator.repository.DiaryPersonRepository.MemoryRecallPersonRow;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
-import com.tada.tada.diary.repository.DiaryRepository;
-import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.repository.MentionCandidateRepository.MemoryRecallEntityRow;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
-import com.tada.tada.curator.repository.DiaryPersonRepository.MemoryRecallPersonRow;
-import com.tada.tada.curator.entity.MentionEntityType;
-import com.tada.tada.curator.repository.MentionCandidateRepository.MemoryRecallEntityRow;
+import com.tada.tada.diary.repository.DiaryRepository;
+import com.tada.tada.diary.repository.StickerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.tada.tada.curator.entity.MentionCandidate;
-import com.tada.tada.curator.entity.MentionCandidateStatus;
-import com.tada.tada.curator.dto.MemoryRecallResponse;
 
 import java.text.BreakIterator;
-import java.util.Locale;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -50,28 +50,60 @@ public class MemoryRecallService {
 	private final MentionCandidateRepository mentionCandidateRepository;
 	private final StickerRepository stickerRepository;
 
+	private boolean isExcludedDiary(
+			UUID diaryId,
+			UUID excludeDiaryId
+	) {
+		return excludeDiaryId != null
+				&& excludeDiaryId.equals(diaryId);
+	}
+
 	private List<Diary> findMonthRecallCandidates(
 			UUID userId,
-			int monthsAgo
+			int monthsAgo,
+			UUID excludeDiaryId
 	) {
 		LocalDate targetDate =
 				LocalDate.now(KST)
 						.minusMonths(monthsAgo);
 
-		return diaryRepository
-				.findByUserIdAndEntryDateBetweenAndStatus(
-						userId,
-						targetDate.minusDays(DATE_RANGE_DAYS),
-						targetDate.plusDays(DATE_RANGE_DAYS),
-						DiaryStatus.ACTIVE
-				);
+		List<Diary> diaries =
+				diaryRepository
+						.findByUserIdAndEntryDateBetweenAndStatus(
+								userId,
+								targetDate.minusDays(
+										DATE_RANGE_DAYS
+								),
+								targetDate.plusDays(
+										DATE_RANGE_DAYS
+								),
+								DiaryStatus.ACTIVE
+						);
+
+		if (excludeDiaryId == null) {
+			return diaries;
+		}
+
+		return diaries.stream()
+				.filter(
+						diary ->
+								!isExcludedDiary(
+										diary.getId(),
+										excludeDiaryId
+								)
+				)
+				.toList();
 	}
 
 	private List<Diary> findSameWeekdayCandidates(
-			UUID userId
+			UUID userId,
+			UUID excludeDiaryId
 	) {
-		DayOfWeek today =
-				LocalDate.now(KST).getDayOfWeek();
+		LocalDate today =
+				LocalDate.now(KST);
+
+		DayOfWeek todayWeekday =
+				today.getDayOfWeek();
 
 		List<Diary> result =
 				new ArrayList<>();
@@ -82,8 +114,27 @@ public class MemoryRecallService {
 						DiaryStatus.ACTIVE
 				)) {
 
-			if (diary.getEntryDate()
-					.getDayOfWeek() == today) {
+			LocalDate entryDate =
+					diary.getEntryDate();
+
+			/*
+			 * 메시지가 "지난 X요일"이므로
+			 * 오늘 및 미래 날짜의 일기는 제외한다.
+			 */
+			if (!entryDate.isBefore(today)) {
+				continue;
+			}
+
+			if (isExcludedDiary(
+					diary.getId(),
+					excludeDiaryId
+			)) {
+				continue;
+			}
+
+			if (entryDate.getDayOfWeek()
+					== todayWeekday) {
+
 				result.add(diary);
 			}
 		}
@@ -101,7 +152,8 @@ public class MemoryRecallService {
 				)
 				.stream()
 				.min(
-						Comparator.comparing(
+						Comparator
+								.comparing(
 										Diary::getEntryDate
 								)
 								.thenComparing(
@@ -112,12 +164,39 @@ public class MemoryRecallService {
 	}
 
 	private List<Diary> findFallbackCandidates(
-			UUID userId
+			UUID userId,
+			UUID excludeDiaryId
 	) {
-		return diaryRepository.findByUserIdAndStatus(
-				userId,
-				DiaryStatus.ACTIVE
-		);
+		List<Diary> all =
+				diaryRepository
+						.findByUserIdAndStatus(
+								userId,
+								DiaryStatus.ACTIVE
+						);
+
+		if (excludeDiaryId == null) {
+			return all;
+		}
+
+		List<Diary> filtered =
+				all.stream()
+						.filter(
+								diary ->
+										!isExcludedDiary(
+												diary.getId(),
+												excludeDiaryId
+										)
+						)
+						.toList();
+
+		/*
+		 * 수동 새로고침 시 현재 Diary를 우선 제외한다.
+		 * 다만 ACTIVE Diary가 현재 카드 하나뿐이라면
+		 * 같은 카드가 다시 선택되는 것을 허용한다.
+		 */
+		return filtered.isEmpty()
+				? all
+				: filtered;
 	}
 
 	private record RecallDiary(
@@ -136,12 +215,21 @@ public class MemoryRecallService {
 	) {
 	}
 
+	private record RecallSelection(
+			RecallDiary diary,
+			String displayValue
+	) {
+	}
+
 	private List<RecallGroup> findPersonRecallGroups(
-			UUID userId
+			UUID userId,
+			UUID excludeDiaryId
 	) {
 		List<MemoryRecallPersonRow> rows =
 				diaryPersonRepository
-						.findMemoryRecallPersonRows(userId);
+						.findMemoryRecallPersonRows(
+								userId
+						);
 
 		Map<UUID, List<RecallDiary>> diariesByPerson =
 				new LinkedHashMap<>();
@@ -151,6 +239,13 @@ public class MemoryRecallService {
 
 		for (MemoryRecallPersonRow row : rows) {
 
+			if (isExcludedDiary(
+					row.getDiaryId(),
+					excludeDiaryId
+			)) {
+				continue;
+			}
+
 			displayNameByPerson.putIfAbsent(
 					row.getPersonId(),
 					row.getDisplayName()
@@ -159,7 +254,8 @@ public class MemoryRecallService {
 			diariesByPerson
 					.computeIfAbsent(
 							row.getPersonId(),
-							ignored -> new ArrayList<>()
+							ignored ->
+									new ArrayList<>()
 					)
 					.add(
 							new RecallDiary(
@@ -180,11 +276,17 @@ public class MemoryRecallService {
 			UUID personId =
 					entry.getKey();
 
+			if (entry.getValue().isEmpty()) {
+				continue;
+			}
+
 			groups.add(
 					new RecallGroup(
 							MemoryRecallType.PERSON,
 							personId.toString(),
-							displayNameByPerson.get(personId),
+							displayNameByPerson.get(
+									personId
+							),
 							entry.getValue()
 					)
 			);
@@ -194,11 +296,14 @@ public class MemoryRecallService {
 	}
 
 	private List<RecallGroup> findEntityRecallGroups(
-			UUID userId
+			UUID userId,
+			UUID excludeDiaryId
 	) {
 		List<MemoryRecallEntityRow> rows =
 				mentionCandidateRepository
-						.findMemoryRecallEntityRows(userId);
+						.findMemoryRecallEntityRows(
+								userId
+						);
 
 		Map<String, Map<UUID, RecallDiary>> diariesByGroup =
 				new LinkedHashMap<>();
@@ -229,7 +334,8 @@ public class MemoryRecallService {
 			diariesByGroup
 					.computeIfAbsent(
 							groupKey,
-							ignored -> new LinkedHashMap<>()
+							ignored ->
+									new LinkedHashMap<>()
 					)
 					.putIfAbsent(
 							row.getDiaryId(),
@@ -249,20 +355,44 @@ public class MemoryRecallService {
 				diariesByGroup.entrySet()) {
 
 			MentionEntityType entityType =
-					typeByGroup.get(entry.getKey());
+					typeByGroup.get(
+							entry.getKey()
+					);
 
-			List<RecallDiary> diaries =
+			List<RecallDiary> originalDiaries =
 					new ArrayList<>(
 							entry.getValue().values()
 					);
 
-			if (entityType == MentionEntityType.ACTIVITY
-					&& diaries.size() < 2) {
+			/*
+			 * ACTIVITY의 "반복" 여부는 excludeDiaryId를
+			 * 적용하기 전 전체 ACTIVE Diary 기준으로 판단한다.
+			 */
+			if (entityType
+					== MentionEntityType.ACTIVITY
+					&& originalDiaries.size() < 2) {
+
+				continue;
+			}
+
+			List<RecallDiary> selectableDiaries =
+					originalDiaries.stream()
+							.filter(
+									diary ->
+											!isExcludedDiary(
+													diary.diaryId(),
+													excludeDiaryId
+											)
+							)
+							.toList();
+
+			if (selectableDiaries.isEmpty()) {
 				continue;
 			}
 
 			MemoryRecallType eventType =
-					entityType == MentionEntityType.PLACE
+					entityType
+							== MentionEntityType.PLACE
 							? MemoryRecallType.PLACE
 							: MemoryRecallType.ACTIVITY;
 
@@ -270,8 +400,10 @@ public class MemoryRecallService {
 					new RecallGroup(
 							eventType,
 							entry.getKey(),
-							valueByGroup.get(entry.getKey()),
-							diaries
+							valueByGroup.get(
+									entry.getKey()
+							),
+							selectableDiaries
 					)
 			);
 		}
@@ -282,15 +414,18 @@ public class MemoryRecallService {
 	private MemoryRecallType selectEventType(
 			UUID userId,
 			List<RecallGroup> personGroups,
-			List<RecallGroup> entityGroups
+			List<RecallGroup> entityGroups,
+			UUID excludeDiaryId
 	) {
 		List<MemoryRecallType> availableTypes =
 				new ArrayList<>();
 
 		if (!findMonthRecallCandidates(
 				userId,
-				12
+				12,
+				excludeDiaryId
 		).isEmpty()) {
+
 			availableTypes.add(
 					MemoryRecallType.TWELVE_MONTHS_AGO
 			);
@@ -298,8 +433,10 @@ public class MemoryRecallService {
 
 		if (!findMonthRecallCandidates(
 				userId,
-				6
+				6,
+				excludeDiaryId
 		).isEmpty()) {
+
 			availableTypes.add(
 					MemoryRecallType.SIX_MONTHS_AGO
 			);
@@ -307,8 +444,10 @@ public class MemoryRecallService {
 
 		if (!findMonthRecallCandidates(
 				userId,
-				3
+				3,
+				excludeDiaryId
 		).isEmpty()) {
+
 			availableTypes.add(
 					MemoryRecallType.THREE_MONTHS_AGO
 			);
@@ -349,14 +488,24 @@ public class MemoryRecallService {
 		}
 
 		if (!findSameWeekdayCandidates(
-				userId
+				userId,
+				excludeDiaryId
 		).isEmpty()) {
+
 			availableTypes.add(
 					MemoryRecallType.SAME_WEEKDAY
 			);
 		}
 
-		if (findFirstEntry(userId) != null) {
+		Diary firstEntry =
+				findFirstEntry(userId);
+
+		if (firstEntry != null
+				&& !isExcludedDiary(
+				firstEntry.getId(),
+				excludeDiaryId
+		)) {
+
 			availableTypes.add(
 					MemoryRecallType.FIRST_ENTRY
 			);
@@ -378,7 +527,8 @@ public class MemoryRecallService {
 			UUID userId,
 			MemoryRecallType eventType,
 			List<RecallGroup> personGroups,
-			List<RecallGroup> entityGroups
+			List<RecallGroup> entityGroups,
+			UUID excludeDiaryId
 	) {
 		return switch (eventType) {
 
@@ -387,7 +537,8 @@ public class MemoryRecallService {
 							selectRandomDiary(
 									findMonthRecallCandidates(
 											userId,
-											12
+											12,
+											excludeDiaryId
 									)
 							),
 							null
@@ -398,7 +549,8 @@ public class MemoryRecallService {
 							selectRandomDiary(
 									findMonthRecallCandidates(
 											userId,
-											6
+											6,
+											excludeDiaryId
 									)
 							),
 							null
@@ -409,7 +561,8 @@ public class MemoryRecallService {
 							selectRandomDiary(
 									findMonthRecallCandidates(
 											userId,
-											3
+											3,
+											excludeDiaryId
 									)
 							),
 							null
@@ -440,7 +593,9 @@ public class MemoryRecallService {
 								.toList();
 
 				RecallGroup group =
-						selectRandomGroup(groups);
+						selectRandomGroup(
+								groups
+						);
 
 				yield new RecallSelection(
 						selectRandomRecallDiary(
@@ -461,7 +616,9 @@ public class MemoryRecallService {
 								.toList();
 
 				RecallGroup group =
-						selectRandomGroup(groups);
+						selectRandomGroup(
+								groups
+						);
 
 				yield new RecallSelection(
 						selectRandomRecallDiary(
@@ -475,7 +632,8 @@ public class MemoryRecallService {
 					new RecallSelection(
 							selectRandomDiary(
 									findSameWeekdayCandidates(
-											userId
+											userId,
+											excludeDiaryId
 									)
 							),
 							null
@@ -483,12 +641,16 @@ public class MemoryRecallService {
 
 			case FIRST_ENTRY -> {
 				Diary diary =
-						findFirstEntry(userId);
+						findFirstEntry(
+								userId
+						);
 
 				yield new RecallSelection(
 						diary == null
 								? null
-								: toRecallDiary(diary),
+								: toRecallDiary(
+								diary
+						),
 						null
 				);
 			}
@@ -497,7 +659,8 @@ public class MemoryRecallService {
 					new RecallSelection(
 							selectRandomDiary(
 									findFallbackCandidates(
-											userId
+											userId,
+											excludeDiaryId
 									)
 							),
 							null
@@ -510,7 +673,9 @@ public class MemoryRecallService {
 	) {
 		return groups.get(
 				ThreadLocalRandom.current()
-						.nextInt(groups.size())
+						.nextInt(
+								groups.size()
+						)
 		);
 	}
 
@@ -519,7 +684,9 @@ public class MemoryRecallService {
 	) {
 		return diaries.get(
 				ThreadLocalRandom.current()
-						.nextInt(diaries.size())
+						.nextInt(
+								diaries.size()
+						)
 		);
 	}
 
@@ -533,10 +700,14 @@ public class MemoryRecallService {
 		Diary diary =
 				diaries.get(
 						ThreadLocalRandom.current()
-								.nextInt(diaries.size())
+								.nextInt(
+										diaries.size()
+								)
 				);
 
-		return toRecallDiary(diary);
+		return toRecallDiary(
+				diary
+		);
 	}
 
 	private RecallDiary toRecallDiary(
@@ -555,7 +726,9 @@ public class MemoryRecallService {
 	) {
 		return stickerRepository
 				.findByDiaryIdIn(
-						List.of(diaryId)
+						List.of(
+								diaryId
+						)
 				)
 				.stream()
 				.findFirst()
@@ -584,6 +757,7 @@ public class MemoryRecallService {
 
 			if (candidate.getStatus()
 					!= MentionCandidateStatus.CONFIRMED) {
+
 				continue;
 			}
 
@@ -624,9 +798,13 @@ public class MemoryRecallService {
 		}
 
 		List<String> tags =
-				new ArrayList<>(tagSet);
+				new ArrayList<>(
+						tagSet
+				);
 
-		Collections.shuffle(tags);
+		Collections.shuffle(
+				tags
+		);
 
 		if (tags.size() <= 2) {
 			return tags;
@@ -654,6 +832,7 @@ public class MemoryRecallService {
 	) {
 		if (content == null
 				|| content.isBlank()) {
+
 			return null;
 		}
 
@@ -665,7 +844,9 @@ public class MemoryRecallService {
 						Locale.KOREAN
 				);
 
-		iterator.setText(text);
+		iterator.setText(
+				text
+		);
 
 		int start =
 				iterator.first();
@@ -675,6 +856,7 @@ public class MemoryRecallService {
 
 		if (end
 				== BreakIterator.DONE) {
+
 			return text;
 		}
 
@@ -682,12 +864,6 @@ public class MemoryRecallService {
 				start,
 				end
 		).strip();
-	}
-
-	private record RecallSelection(
-			RecallDiary diary,
-			String displayValue
-	) {
 	}
 
 	private String findFirstPersonName(
@@ -711,11 +887,13 @@ public class MemoryRecallService {
 
 			if (candidate.getEntityType()
 					!= MentionEntityType.PERSON) {
+
 				continue;
 			}
 
 			if (candidate.getStatus()
 					!= MentionCandidateStatus.CONFIRMED) {
+
 				continue;
 			}
 
@@ -747,6 +925,7 @@ public class MemoryRecallService {
 	) {
 		if (value == null
 				|| value.isBlank()) {
+
 			return false;
 		}
 
@@ -757,6 +936,7 @@ public class MemoryRecallService {
 
 		if (last < 0xAC00
 				|| last > 0xD7A3) {
+
 			return false;
 		}
 
@@ -807,6 +987,7 @@ public class MemoryRecallService {
 	) {
 		if (selection == null
 				|| selection.diary() == null) {
+
 			return null;
 		}
 
@@ -874,6 +1055,16 @@ public class MemoryRecallService {
 	public MemoryRecallResponse getMemoryRecall(
 			UUID userId
 	) {
+		return getMemoryRecall(
+				userId,
+				null
+		);
+	}
+
+	public MemoryRecallResponse getMemoryRecall(
+			UUID userId,
+			UUID excludeDiaryId
+	) {
 		if (userId == null) {
 			throw new IllegalArgumentException(
 					"userId must not be null"
@@ -882,19 +1073,22 @@ public class MemoryRecallService {
 
 		List<RecallGroup> personGroups =
 				findPersonRecallGroups(
-						userId
+						userId,
+						excludeDiaryId
 				);
 
 		List<RecallGroup> entityGroups =
 				findEntityRecallGroups(
-						userId
+						userId,
+						excludeDiaryId
 				);
 
 		MemoryRecallType eventType =
 				selectEventType(
 						userId,
 						personGroups,
-						entityGroups
+						entityGroups,
+						excludeDiaryId
 				);
 
 		RecallSelection selection =
@@ -902,11 +1096,13 @@ public class MemoryRecallService {
 						userId,
 						eventType,
 						personGroups,
-						entityGroups
+						entityGroups,
+						excludeDiaryId
 				);
 
 		if (selection == null
 				|| selection.diary() == null) {
+
 			return null;
 		}
 

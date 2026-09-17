@@ -237,11 +237,6 @@ public class MentionExtractionProcessor {
 				 *
 				 * 새 PERSON만 Resolver를 실행한다.
 				 */
-				Set<UUID> blockedPersonIds =
-						new HashSet<>(
-								assignedPersonIds
-						);
-
 				Set<UUID> reusablePersonIds =
 						findReusablePersonIdsInDiary(
 								normalizedText,
@@ -249,21 +244,45 @@ public class MentionExtractionProcessor {
 						);
 
 				if (reusablePersonIds.size() == 1) {
-					blockedPersonIds.remove(
+
+					UUID reusablePersonId =
 							reusablePersonIds
 									.iterator()
-									.next()
-					);
-				}
+									.next();
 
-				candidate =
-						mentionCandidateService
-								.createPersonCandidate(
-										diaryId,
-										userId,
-										person.rawText(),
-										blockedPersonIds
-								);
+					/*
+					 * 9.4.1
+					 *
+					 * 같은 ExtractionResult 안에서
+					 * normalizedText가 완전히 같고,
+					 * 이미 정확히 한 Person에 배정됐다면
+					 * 일반 Matching/Creation Guard를 다시 타지 않고
+					 * 그 Person을 직접 재사용한다.
+					 */
+					candidate =
+							mentionCandidateService
+									.createPersonCandidateForMatchedPerson(
+											diaryId,
+											person.rawText(),
+											reusablePersonId
+									);
+
+				} else {
+
+					Set<UUID> blockedPersonIds =
+							new HashSet<>(
+									assignedPersonIds
+							);
+
+					candidate =
+							mentionCandidateService
+									.createPersonCandidate(
+											diaryId,
+											userId,
+											person.rawText(),
+											blockedPersonIds
+									);
+				}
 			}
 
 			candidatesByRef.put(
