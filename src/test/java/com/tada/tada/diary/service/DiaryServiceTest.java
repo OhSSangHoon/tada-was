@@ -7,6 +7,7 @@ import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.service.CuratorCleanupService;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
 import com.tada.tada.global.event.DiaryUpdatedEvent;
@@ -39,6 +40,7 @@ class DiaryServiceTest {
 
 	private DiaryRepository diaryRepository;
 	private StickerRepository stickerRepository;
+	private CuratorCleanupService curatorCleanupService;
 	private ApplicationEventPublisher eventPublisher;
 	private DiaryService diaryService;
 
@@ -50,6 +52,9 @@ class DiaryServiceTest {
 		stickerRepository =
 				Mockito.mock(StickerRepository.class);
 
+		curatorCleanupService =
+				Mockito.mock(CuratorCleanupService.class);
+
 		eventPublisher =
 				Mockito.mock(ApplicationEventPublisher.class);
 
@@ -57,6 +62,7 @@ class DiaryServiceTest {
 				new DiaryService(
 						diaryRepository,
 						stickerRepository,
+						curatorCleanupService,
 						eventPublisher
 				);
 	}

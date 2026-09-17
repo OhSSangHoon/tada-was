@@ -9,6 +9,7 @@ import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.service.CuratorCleanupService;
 import com.tada.tada.global.event.DiaryCreatedEvent;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
@@ -34,6 +35,7 @@ public class DiaryService {
 
 	private final DiaryRepository diaryRepository;
 	private final StickerRepository stickerRepository;
+	private final CuratorCleanupService curatorCleanupService;
 	private final ApplicationEventPublisher eventPublisher;
 	private static final int NEARBY_DATE_RANGE_DAYS = 3;
 	private static final int DAILY_CREATE_LIMIT = 5;
@@ -198,6 +200,29 @@ public class DiaryService {
 				.build();
 	}
 	
+	/*
+	 * 수동 영구삭제 API와 30일 @Scheduled 배치가 이 메서드 하나를 재사용한다 (CLAUDE.md REQ-F-205).
+	 * 삭제 순서 고정: diary_person → mention_candidate(CuratorCleanupService) → stickers → diaries.
+	 * MemoryPerson은 다른 일기에서도 참조돼서 여기서 지우면 안 됨 (CuratorCleanupService가 알아서 그 둘만 지움).
+	 */
+	@Transactional
+	public void permanentlyDeleteDiary(UUID userId, UUID diaryId) {
+		Diary diary = diaryRepository.findByIdForUpdate(diaryId)
+				.orElseThrow(() -> new CustomException("일기를 찾을 수 없습니다.", 404));
+
+		if (!diary.getUserId().equals(userId)) {
+			throw new CustomException("접근 권한이 없습니다.", 403);
+		}
+
+		if (diary.isActive()) {
+			throw new CustomException("휴지통에 있는 일기만 영구 삭제할 수 있습니다.", 400);
+		}
+
+		curatorCleanupService.deleteByDiaryId(diaryId);
+		stickerRepository.deleteByDiaryId(diaryId);
+		diaryRepository.delete(diary);
+	}
+
 	public List<DiaryResponse> getNearbyDiaries(UUID userId, LocalDate targetDate) {
 		LocalDate start = targetDate.minusDays(NEARBY_DATE_RANGE_DAYS);
 		LocalDate end = targetDate.plusDays(NEARBY_DATE_RANGE_DAYS);

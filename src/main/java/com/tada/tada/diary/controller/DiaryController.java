@@ -92,8 +92,19 @@ public class DiaryController {
 	@GetMapping("/trash")
 	public ApiResponse<List<DiaryResponse>> getAllTrashedDiaries(Authentication authentication) {
 		UUID userId = (UUID) authentication.getPrincipal();
-		
+
 		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 		return ApiResponse.success(responses);
+	}
+
+	@DeleteMapping("/{id}/permanent")
+	public ApiResponse<Void> permanentlyDeleteDiary(
+			@PathVariable UUID id,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+
+		diaryService.permanentlyDeleteDiary(userId, id);
+		return ApiResponse.success(null);
 	}
 }
