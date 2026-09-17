@@ -2,6 +2,7 @@ package com.tada.tada.diary.service;
 
 import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryResponse;
+import com.tada.tada.diary.dto.DiaryUpdateForm;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.repository.DiaryRepository;
@@ -9,6 +10,9 @@ import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
+import com.tada.tada.global.event.DiaryUpdatedEvent;
+import com.tada.tada.global.event.MentionExtractedEvent;
+import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.exception.CustomException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,80 +67,134 @@ class DiaryServiceTest {
 				);
 	}
 
-	// ----- permanentlyDeleteDiary -----
+	// ----- updateDiary -----
 
 	@Test
-	void 영구삭제_대상이_없으면_404를_던진다() {
+	void 수정_대상이_없으면_404를_던진다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
+		DiaryUpdateForm form = new DiaryUpdateForm();
 
-		when(diaryRepository.findByIdForUpdate(diaryId))
+		when(diaryRepository.findById(diaryId))
 				.thenReturn(Optional.empty());
 
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
+				() -> diaryService.updateDiary(userId, diaryId, form)
 		);
 
 		assertEquals(404, exception.getStatusCode());
 	}
 
 	@Test
-	void 다른_유저의_일기를_영구삭제하려하면_403을_던진다() {
+	void 다른_유저의_일기를_수정하려하면_403을_던진다() {
 		UUID userId = UUID.randomUUID();
 		UUID ownerId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
 		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
 
-		when(diaryRepository.findByIdForUpdate(diaryId))
+		when(diaryRepository.findById(diaryId))
 				.thenReturn(Optional.of(diary));
 		when(diary.getUserId()).thenReturn(ownerId);
 
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
+				() -> diaryService.updateDiary(userId, diaryId, form)
 		);
 
 		assertEquals(403, exception.getStatusCode());
 	}
 
 	@Test
-	void ACTIVE_상태의_일기는_영구삭제하려하면_400을_던진다() {
+	void TRASHED_상태의_일기를_수정하려하면_404를_던진다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
 		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
 
-		when(diaryRepository.findByIdForUpdate(diaryId))
-				.thenReturn(Optional.of(diary));
-		when(diary.getUserId()).thenReturn(userId);
-		when(diary.isActive()).thenReturn(true);
-
-		CustomException exception = assertThrows(
-				CustomException.class,
-				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
-		);
-
-		assertEquals(400, exception.getStatusCode());
-		verify(curatorCleanupService, never()).deleteByDiaryId(any());
-		verify(stickerRepository, never()).deleteByDiaryId(any());
-	}
-
-	@Test
-	void TRASHED_상태의_일기는_자식_먼저_지우고_영구삭제된다() {
-		UUID userId = UUID.randomUUID();
-		UUID diaryId = UUID.randomUUID();
-		Diary diary = Mockito.mock(Diary.class);
-
-		when(diaryRepository.findByIdForUpdate(diaryId))
+		when(diaryRepository.findById(diaryId))
 				.thenReturn(Optional.of(diary));
 		when(diary.getUserId()).thenReturn(userId);
 		when(diary.isActive()).thenReturn(false);
 
-		diaryService.permanentlyDeleteDiary(userId, diaryId);
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.updateDiary(userId, diaryId, form)
+		);
 
-		verify(curatorCleanupService).deleteByDiaryId(diaryId);
-		verify(stickerRepository).deleteByDiaryId(diaryId);
-		verify(diaryRepository).delete(diary);
+		assertEquals(404, exception.getStatusCode());
+	}
+
+	@Test
+	void 제목이나_날씨만_바뀌면_이벤트를_발행하지_않는다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("새 제목");
+		form.setWeather("SUNNY");
+		form.setContent("기존 본문");
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		diaryService.updateDiary(userId, diaryId, form);
+
+		verify(diary).update("새 제목", "SUNNY", "기존 본문");
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void 본문이_바뀌는데_extractionResult가_없으면_400을_던지고_수정하지_않는다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("제목");
+		form.setContent("새로운 본문");
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.updateDiary(userId, diaryId, form)
+		);
+
+		assertEquals(400, exception.getStatusCode());
+		verify(diary, never()).update(any(), any(), any());
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void 본문이_바뀌면_MentionExtractedEvent와_DiaryUpdatedEvent를_둘다_발행한다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		ExtractionResult extractionResult = new ExtractionResult(List.of(), List.of(), List.of());
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("제목");
+		form.setContent("새로운 본문");
+		form.setExtractionResult(extractionResult);
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		diaryService.updateDiary(userId, diaryId, form);
+
+		verify(diary).update("제목", null, "새로운 본문");
+		verify(eventPublisher).publishEvent(new MentionExtractedEvent(diaryId, userId, extractionResult));
+		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
 	}
 
 	// ----- restoreDiary -----
