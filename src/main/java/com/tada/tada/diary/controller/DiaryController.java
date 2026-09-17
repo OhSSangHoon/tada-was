@@ -1,5 +1,6 @@
 package com.tada.tada.diary.controller;
 
+import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
@@ -10,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -61,5 +64,36 @@ public class DiaryController {
 		
 		diaryService.trashDiary(userId, id);
 		return ApiResponse.success(null);
+	}
+	
+	@PostMapping("/{id}/restore")
+	public ApiResponse<DiaryResponse> restoreDiary(
+			@PathVariable UUID id,
+			@RequestParam(defaultValue = "false") boolean replace,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		DiaryResponse response = diaryService.restoreDiary(userId, id, replace);
+		return ApiResponse.success(response);
+	}
+	
+	@GetMapping("/can-create")
+	public ApiResponse<CanCreateResponse> canCreate(
+			@RequestParam LocalDate date,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		CanCreateResponse response = diaryService.canCreate(userId, date);
+		return ApiResponse.success(response);
+	}
+	
+	@GetMapping("/trash")
+	public ApiResponse<List<DiaryResponse>> getAllTrashedDiaries(Authentication authentication) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		return ApiResponse.success(responses);
 	}
 }

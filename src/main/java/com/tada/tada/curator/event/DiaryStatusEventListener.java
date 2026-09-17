@@ -11,17 +11,9 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 /*
- * Trash / Restore 시 인물 통계를 다시 맞춘다.
- *
- * 두 이벤트 모두 Diary 상태를 바꾸는 트랜잭션 안에서 발행되고,
- * 일반 동기 @EventListener 로 같은 트랜잭션에서 처리한다.
- *
- * 예외를 삼키지 않는다.
- * 통계가 틀린 채로 Trash 만 성공하는 것보다,
- * 실패하고 사용자가 다시 시도하는 쪽이 안전하다.
- * 재계산은 ACTIVE 원본 기준이라 재시도해도 같은 결과가 나온다.
- *
- * Candidate / Relation / DiaryPerson 은 유지한다. (명세 16.1, 16.2)
+ * Trash/Restore 트랜잭션 안에서 동기 처리하고 예외를 삼키지 않는다.
+ * 통계가 틀린 채 성공하는 것보다 실패 후 재시도가 안전하다 (재계산은 ACTIVE 원본 기준이라 몇 번을 돌려도 같은 값).
+ * Candidate/Relation/DiaryPerson은 유지한다 (명세 16.1, 16.2).
  */
 @Slf4j
 @Component
