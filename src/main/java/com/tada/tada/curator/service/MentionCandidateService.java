@@ -8,6 +8,7 @@ import com.tada.tada.curator.repository.MentionCandidateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -168,5 +169,23 @@ public class MentionCandidateService {
 
 		return mentionCandidateRepository
 				.findAllByDiaryId(diaryId);
+	}
+
+	public void deleteAll(
+			Collection<MentionCandidate> candidates
+	) {
+		if (candidates == null) {
+			throw new IllegalArgumentException(
+					"candidates must not be null"
+			);
+		}
+
+		if (candidates.isEmpty()) {
+			return;
+		}
+
+		mentionCandidateRepository.deleteAll(
+				candidates
+		);
 	}
 }
