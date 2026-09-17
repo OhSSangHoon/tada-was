@@ -3,6 +3,7 @@ package com.tada.tada.search.service;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
+import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.repository.SearchRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, "   ", pageable)
+				() -> searchService.search(userId, "   ", pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어를 입력해주세요.", exception.getMessage());
@@ -62,7 +63,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, null, pageable)
+				() -> searchService.search(userId, null, pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어를 입력해주세요.", exception.getMessage());
@@ -79,7 +80,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, "기분 좋은 날", pageable)
+				() -> searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", exception.getMessage());
@@ -109,14 +110,14 @@ class SearchServiceTest {
 		Page<SearchResultProjection> projectionPage =
 				new PageImpl<>(List.of(projection), pageable, 1);
 		
-		when(searchRepository.findSimilarDiariesWithPagination(
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
 				eq(pageable)
 		)).thenReturn(projectionPage);
 		
 		Page<SearchResultResponse> result =
-				searchService.search(userId, "기분 좋은 날", pageable);
+				searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
 		
 		assertEquals(1, result.getContent().size());
 		assertEquals(diaryId, result.getContent().get(0).getId());
@@ -124,7 +125,7 @@ class SearchServiceTest {
 		assertEquals("https://cdn.example.com/stickers/1.png", result.getContent().get(0).getStickerImageUrl());
 		
 		// 본인(userId) 기준으로 필터링해서 조회했는지 검증 (다른 사용자 일기 노출 방지)
-		verify(searchRepository).findSimilarDiariesWithPagination(
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
 				eq(pageable)
@@ -154,14 +155,50 @@ class SearchServiceTest {
 		Page<SearchResultProjection> projectionPage =
 				new PageImpl<>(List.of(projection), pageable, 1);
 		
-		when(searchRepository.findSimilarDiariesWithPagination(
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId), anyString(), eq(pageable)
 		)).thenReturn(projectionPage);
 		
 		Page<SearchResultResponse> result =
-				searchService.search(userId, "기분 좋은 날", pageable);
+				searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
 		
 		assertNull(result.getContent().get(0).getStickerImageUrl());
+	}
+	
+	@Test
+	void 정렬옵션이_LATEST이면_최신순_리포지토리_메서드를_호출한다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), eq(pageable)))
+				.thenReturn(emptyPage);
+		
+		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
+		
+		// LATEST일 때 최신순(Desc) 메서드만 호출되고 오래된순(Asc)은 호출되지 않아야 함
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), eq(pageable));
+	}
+	
+	@Test
+	void 정렬옵션이_OLDEST이면_오래된순_리포지토리_메서드를_호출한다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+		when(searchRepository.findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), eq(pageable)))
+				.thenReturn(emptyPage);
+		
+		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.OLDEST);
+		
+		// OLDEST일 때 오래된순(Asc) 메서드만 호출되고 최신순(Desc)은 호출되지 않아야 함
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), eq(pageable));
 	}
 	
 	private SearchResultProjection createProjection(

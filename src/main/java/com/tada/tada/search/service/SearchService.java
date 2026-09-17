@@ -3,6 +3,7 @@ package com.tada.tada.search.service;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
+import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.repository.SearchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -50,7 +51,7 @@ public class SearchService {
 		@param pageable 페이지 정보
 		@return 유사도순으로 정렬된 본인 일기 Page 객체
 	 */
-	public Page<SearchResultResponse> search(UUID userId, String queryText, Pageable pageable) {
+	public Page<SearchResultResponse> search(UUID userId, String queryText, Pageable pageable, SearchSortOption sort) {
 		
 		// 검색어가 비어있으면 임베딩 계산 (외부 API 호출)까지 갈 필요 없이 바로 막음
 		if (queryText == null || queryText.isBlank()) {
@@ -69,7 +70,10 @@ public class SearchService {
 		// float[] 배열을 문자열로 변환 -> pgvector 쿼리 파라미터로 사용
 		String embeddingString = Arrays.toString(embedding);
 		
-		Page<SearchResultProjection> diaryPage = searchRepository.findSimilarDiariesWithPagination(userId, embeddingString, pageable);
+		Page<SearchResultProjection> diaryPage = switch (sort) {
+			case LATEST -> searchRepository.findSimilarDiariesOrderByEntryDateDesc(userId, embeddingString, pageable);
+			case OLDEST -> searchRepository.findSimilarDiariesOrderByEntryDateAsc(userId, embeddingString, pageable);
+		};
 		
 		return diaryPage.map(this::toSearchResultResponse);
 	}
@@ -83,4 +87,6 @@ public class SearchService {
 				projection.getStickerImageUrl()		// LEFT JOIN이라 스티커 없으면 자동으로 null
 		);
 	}
+	
+	
 }
