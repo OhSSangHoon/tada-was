@@ -12,6 +12,7 @@ import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.global.event.DiaryCreatedEvent;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
+import com.tada.tada.global.event.DiaryUpdatedEvent;
 import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
@@ -88,17 +89,33 @@ public class DiaryService {
 	public DiaryResponse updateDiary(UUID userId, UUID diaryId, DiaryUpdateForm form) {
 		Diary diary = diaryRepository.findById(diaryId)
 				.orElseThrow(() -> new CustomException("일기를 찾을 수 없습니다.", 404));
-		
+
 		if (!diary.getUserId().equals(userId)) {
 			throw new CustomException("접근 권한이 없습니다.", 403);
 		}
-		
+
 		if (!diary.isActive()) {
 			throw new CustomException("일기를 찾을 수 없습니다.", 404);
 		}
-		
+
+		String oldContent = diary.getContent();
+		boolean contentChanged = !oldContent.equals(form.getContent());
+
+		if (contentChanged && form.getExtractionResult() == null) {
+			throw new CustomException("본문을 수정할 때는 extractionResult가 필요합니다.", 400);
+		}
+
 		diary.update(form.getTitle(), form.getWeather(), form.getContent());
-		
+
+		if (contentChanged) {
+			eventPublisher.publishEvent(
+					new MentionExtractedEvent(diaryId, userId, form.getExtractionResult())
+			);
+			eventPublisher.publishEvent(
+					new DiaryUpdatedEvent(diaryId, userId, oldContent, form.getContent())
+			);
+		}
+
 		return DiaryResponse.from(diary);
 	}
 	
