@@ -92,8 +92,7 @@ public class ExtractionResultValidator {
 	private static final Set<String>
 			COUNT_EXPRESSION_PERSON_EXCEPTIONS =
 			Set.of(
-					"한이서",
-					"세명"
+					"한이서"
 			);
 
 	private final PersonNormalizer personNormalizer;

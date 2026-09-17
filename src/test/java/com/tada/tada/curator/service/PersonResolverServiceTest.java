@@ -156,7 +156,7 @@ class PersonResolverServiceTest {
 						)
 				)
 		);
-		
+
 		when(personCreationGuard.findReusablePerson(
 				userId,
 				"민혁상",
@@ -191,30 +191,71 @@ class PersonResolverServiceTest {
 	}
 
 	@Test
-	void ambiguous의_후보가_아닌_creationGuard_결과는_재사용하지_않는다() {
+	void ambiguous라도_CreationGuard의_안정_이력이_있으면_현재_후보_밖의_인물도_재사용한다() {
 		UUID userId = UUID.randomUUID();
-		UUID candidateId = UUID.randomUUID();
-		UUID unrelatedId = UUID.randomUUID();
+		UUID candidatePersonId = UUID.randomUUID();
+		UUID reusablePersonId = UUID.randomUUID();
 
-		when(personMatchingService.match(userId, "민서", Set.of()))
-				.thenReturn(PersonMatchResult.ambiguous(
-						java.util.List.of(candidateId)
-				));
-		when(personCreationGuard.findReusablePerson(
-				userId,
-				"민서",
-				"민서",
-				Set.of(),
-				Set.of(candidateId)
-		)).thenReturn(Optional.of(unrelatedId));
-		when(memoryPersonRepository.save(any()))
-				.thenAnswer(invocation -> invocation.getArgument(0));
+		MemoryPerson reusablePerson =
+				Mockito.mock(MemoryPerson.class);
 
-		UUID result = personResolverService.resolve(userId, "민서");
+		when(
+				personMatchingService.match(
+						userId,
+						"민서",
+						Set.of()
+				)
+		).thenReturn(
+				PersonMatchResult.ambiguous(
+						java.util.List.of(
+								candidatePersonId
+						)
+				)
+		);
 
-		assertNotNull(result);
-		verify(memoryPersonRepository, never()).findById(unrelatedId);
-		verify(memoryPersonRepository).save(any(MemoryPerson.class));
+		when(
+				personCreationGuard.findReusablePerson(
+						userId,
+						"민서",
+						"민서",
+						Set.of(),
+						Set.of(candidatePersonId)
+				)
+		).thenReturn(
+				Optional.of(reusablePersonId)
+		);
+
+		when(
+				memoryPersonRepository.findById(
+						reusablePersonId
+				)
+		).thenReturn(
+				Optional.of(reusablePerson)
+		);
+
+		when(
+				reusablePerson.getUserId()
+		).thenReturn(
+				userId
+		);
+
+		UUID result =
+				personResolverService.resolve(
+						userId,
+						"민서"
+				);
+
+		assertEquals(
+				reusablePersonId,
+				result
+		);
+
+		verify(
+				memoryPersonRepository,
+				never()
+		).save(
+				any(MemoryPerson.class)
+		);
 	}
 
 	@Test

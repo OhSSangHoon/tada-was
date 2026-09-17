@@ -6,7 +6,6 @@ import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.entity.PersonAlias;
-import com.tada.tada.curator.model.PersonNormalization;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
 import com.tada.tada.curator.repository.PersonAliasRepository;
