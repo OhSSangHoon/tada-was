@@ -33,6 +33,8 @@ public interface DiaryRepository extends JpaRepository<Diary, UUID> {
 	);
 
 	long countByUserIdAndCreatedAtAfter(UUID userId, LocalDateTime after);
-	
+
 	List<Diary> findByUserIdAndStatus(UUID userId, DiaryStatus status);
+
+	List<Diary> findByStatusAndDeletedAtBefore(DiaryStatus status, LocalDateTime cutoff);
 }
