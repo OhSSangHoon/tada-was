@@ -6,6 +6,7 @@ import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.service.CuratorCleanupService;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
 import com.tada.tada.global.exception.CustomException;
@@ -35,6 +36,7 @@ class DiaryServiceTest {
 
 	private DiaryRepository diaryRepository;
 	private StickerRepository stickerRepository;
+	private CuratorCleanupService curatorCleanupService;
 	private ApplicationEventPublisher eventPublisher;
 	private DiaryService diaryService;
 
@@ -46,6 +48,9 @@ class DiaryServiceTest {
 		stickerRepository =
 				Mockito.mock(StickerRepository.class);
 
+		curatorCleanupService =
+				Mockito.mock(CuratorCleanupService.class);
+
 		eventPublisher =
 				Mockito.mock(ApplicationEventPublisher.class);
 
@@ -53,8 +58,85 @@ class DiaryServiceTest {
 				new DiaryService(
 						diaryRepository,
 						stickerRepository,
+						curatorCleanupService,
 						eventPublisher
 				);
+	}
+
+	// ----- permanentlyDeleteDiary -----
+
+	@Test
+	void 영구삭제_대상이_없으면_404를_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+
+		when(diaryRepository.findByIdForUpdate(diaryId))
+				.thenReturn(Optional.empty());
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
+		);
+
+		assertEquals(404, exception.getStatusCode());
+	}
+
+	@Test
+	void 다른_유저의_일기를_영구삭제하려하면_403을_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID ownerId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+
+		when(diaryRepository.findByIdForUpdate(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(ownerId);
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
+		);
+
+		assertEquals(403, exception.getStatusCode());
+	}
+
+	@Test
+	void ACTIVE_상태의_일기는_영구삭제하려하면_400을_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+
+		when(diaryRepository.findByIdForUpdate(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.permanentlyDeleteDiary(userId, diaryId)
+		);
+
+		assertEquals(400, exception.getStatusCode());
+		verify(curatorCleanupService, never()).deleteByDiaryId(any());
+		verify(stickerRepository, never()).deleteByDiaryId(any());
+	}
+
+	@Test
+	void TRASHED_상태의_일기는_자식_먼저_지우고_영구삭제된다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+
+		when(diaryRepository.findByIdForUpdate(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(false);
+
+		diaryService.permanentlyDeleteDiary(userId, diaryId);
+
+		verify(curatorCleanupService).deleteByDiaryId(diaryId);
+		verify(stickerRepository).deleteByDiaryId(diaryId);
+		verify(diaryRepository).delete(diary);
 	}
 
 	// ----- restoreDiary -----
