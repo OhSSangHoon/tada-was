@@ -18,4 +18,5 @@ public interface SearchResultProjection {
 	String getWeather();
 	String getContent();
 	LocalDateTime getCreatedAt();
+	String getStickerImageUrl();
 }

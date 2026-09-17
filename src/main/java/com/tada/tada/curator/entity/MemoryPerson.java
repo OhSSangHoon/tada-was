@@ -56,4 +56,15 @@ public class MemoryPerson {
 
 		return person;
 	}
+
+	public void updateDisplayName(String displayName) {
+		if (displayName == null
+				|| displayName.isBlank()) {
+			throw new IllegalArgumentException(
+					"displayName must not be blank"
+			);
+		}
+
+		this.displayName = displayName.strip();
+	}
 }

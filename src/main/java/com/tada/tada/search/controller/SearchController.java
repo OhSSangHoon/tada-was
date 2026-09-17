@@ -3,6 +3,7 @@ package com.tada.tada.search.controller;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.global.response.ApiResponse;
 import com.tada.tada.search.dto.SearchResultResponse;
+import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +35,7 @@ public class SearchController {
 	// 페이지네이션 기본값 - 매직 넘버 금지 컨벤션에 따라 상수로 분리
 	private static final String DEFAULT_PAGE = "0";
 	private static final String DEFAULT_PAGE_SIZE = "3";
+	private static final String DEFAULT_SORT = "latest";
 	
 	// SearchService 주입 - 실제 검색 비지니스 로직 + entity -> DTO 변환
 	private final SearchService searchService;
@@ -57,6 +59,7 @@ public class SearchController {
 			@RequestParam("query") String query,
 			@RequestParam(value = "page", required = false, defaultValue = DEFAULT_PAGE) int page,
 			@RequestParam(value = "size", required = false, defaultValue = DEFAULT_PAGE_SIZE) int size,
+			@RequestParam(value = "sort", required = false, defaultValue = DEFAULT_SORT) String  sortParam,
 			Authentication authentication
 	){
 		// JwtAuthFilter가 SecurityContext에 넣어둔 인증 정보에서 로그인 사용자 ID 추출
@@ -71,11 +74,14 @@ public class SearchController {
 			throw new CustomException("size는 1 이상이어야 합니다.", 400);
 		}
 		
+		// sort 파라미터 검증 + enum 변환 (유효하지 않으면 CustomException 400)
+		SearchSortOption sort = SearchSortOption.from(sortParam);
+		
 		// page, size 값을 Pageable 객체로 변환
 		Pageable pageable = PageRequest.of(page, size);
 		
 		// SearchService 호출 -> Page<SearchResultResponse> 반환받음 (본인 일기로 제한)
-		Page<SearchResultResponse> result = searchService.search(userId, query, pageable);
+		Page<SearchResultResponse> result = searchService.search(userId, query, pageable, sort);
 		
 		// 공통 응답(ApiResponse)로 감싸서 반환
 		return ApiResponse.success(result);

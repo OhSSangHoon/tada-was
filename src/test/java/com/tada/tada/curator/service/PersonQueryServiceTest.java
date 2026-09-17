@@ -8,6 +8,7 @@ import com.tada.tada.curator.repository.MentionCandidateRepository;
 import com.tada.tada.curator.repository.PersonAggregateRepository;
 import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.global.exception.CustomException;
+import com.tada.tada.diary.repository.StickerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -22,73 +23,75 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PersonQueryServiceTest {
-	
+
 	private MemoryPersonRepository memoryPersonRepository;
 	private PersonAggregateRepository personAggregateRepository;
 	private PersonAliasRepository personAliasRepository;
 	private DiaryPersonRepository diaryPersonRepository;
 	private MentionCandidateRepository mentionCandidateRepository;
-	
+	private StickerRepository stickerRepository;
+
 	private PersonQueryService personQueryService;
-	
+
 	@BeforeEach
 	void setUp() {
 		memoryPersonRepository =
 				Mockito.mock(
 						MemoryPersonRepository.class
 				);
-		
+
 		personAggregateRepository =
 				Mockito.mock(
 						PersonAggregateRepository.class
 				);
-		
+
 		personAliasRepository =
 				Mockito.mock(
 						PersonAliasRepository.class
 				);
-		
+
 		diaryPersonRepository =
 				Mockito.mock(
 						DiaryPersonRepository.class
 				);
-		
+
 		mentionCandidateRepository =
 				Mockito.mock(
 						MentionCandidateRepository.class
 				);
-		
+
 		personQueryService =
 				new PersonQueryService(
 						memoryPersonRepository,
 						personAggregateRepository,
 						personAliasRepository,
 						diaryPersonRepository,
-						mentionCandidateRepository
+						mentionCandidateRepository,
+						stickerRepository
 				);
 	}
-	
+
 	@Test
 	void ACTIVE_기록이_없는_사람은_상세_조회에서_404를_반환한다() {
 		UUID userId =
 				UUID.randomUUID();
-		
+
 		MemoryPerson person =
 				MemoryPerson.create(
 						userId,
 						"민수"
 				);
-		
+
 		UUID personId =
 				person.getId();
-		
+
 		PersonAggregate aggregate =
 				PersonAggregate.create(
 						personId,
 						0,
 						null
 				);
-		
+
 		when(
 				memoryPersonRepository
 						.findByIdAndUserId(
@@ -98,7 +101,7 @@ class PersonQueryServiceTest {
 		).thenReturn(
 				Optional.of(person)
 		);
-		
+
 		when(
 				personAggregateRepository.findById(
 						personId
@@ -106,7 +109,7 @@ class PersonQueryServiceTest {
 		).thenReturn(
 				Optional.of(aggregate)
 		);
-		
+
 		CustomException exception =
 				assertThrows(
 						CustomException.class,
@@ -117,17 +120,17 @@ class PersonQueryServiceTest {
 												personId
 										)
 				);
-		
+
 		assertEquals(
 				404,
 				exception.getStatusCode()
 		);
-		
+
 		assertEquals(
 				"사람을 찾을 수 없습니다.",
 				exception.getMessage()
 		);
-		
+
 		verify(
 				diaryPersonRepository,
 				never()
@@ -136,21 +139,21 @@ class PersonQueryServiceTest {
 				personId
 		);
 	}
-	
+
 	@Test
 	void PersonAggregate가_없는_사람도_상세_조회에서_404를_반환한다() {
 		UUID userId =
 				UUID.randomUUID();
-		
+
 		MemoryPerson person =
 				MemoryPerson.create(
 						userId,
 						"민수"
 				);
-		
+
 		UUID personId =
 				person.getId();
-		
+
 		when(
 				memoryPersonRepository
 						.findByIdAndUserId(
@@ -160,7 +163,7 @@ class PersonQueryServiceTest {
 		).thenReturn(
 				Optional.of(person)
 		);
-		
+
 		when(
 				personAggregateRepository.findById(
 						personId
@@ -168,7 +171,7 @@ class PersonQueryServiceTest {
 		).thenReturn(
 				Optional.empty()
 		);
-		
+
 		CustomException exception =
 				assertThrows(
 						CustomException.class,
@@ -179,12 +182,12 @@ class PersonQueryServiceTest {
 												personId
 										)
 				);
-		
+
 		assertEquals(
 				404,
 				exception.getStatusCode()
 		);
-		
+
 		verify(
 				diaryPersonRepository,
 				never()
