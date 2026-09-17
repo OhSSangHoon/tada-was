@@ -10,6 +10,7 @@ import com.tada.tada.curator.service.PersonCorrectionService;
 import com.tada.tada.curator.service.PersonQueryService;
 import com.tada.tada.curator.service.PersonRenameService;
 import com.tada.tada.global.response.ApiResponse;
+import com.tada.tada.curator.dto.PersonMemoryGroupResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
@@ -86,6 +87,23 @@ public class PersonController {
 						personId,
 						sort,
 						cursor
+				);
+
+		return ApiResponse.success(response);
+	}
+
+	@GetMapping("/{personId}/memories")
+	public ApiResponse<List<PersonMemoryGroupResponse>> getPersonMemories(
+			@PathVariable UUID personId,
+			Authentication authentication
+	) {
+		UUID userId =
+				(UUID) authentication.getPrincipal();
+
+		List<PersonMemoryGroupResponse> response =
+				personQueryService.getPersonMemories(
+						userId,
+						personId
 				);
 
 		return ApiResponse.success(response);

@@ -27,6 +27,9 @@ import com.tada.tada.curator.repository.MentionCandidateRepository.PersonTimelin
 import com.tada.tada.curator.repository.MentionCandidateRepository.PersonTimelineKeywordRow;
 import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.dto.PersonMemoryDiaryResponse;
+import com.tada.tada.curator.dto.PersonMemoryGroupResponse;
+import com.tada.tada.curator.repository.MentionCandidateRepository.PersonMemoryDiaryRow;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.LinkedHashSet;
@@ -49,6 +52,9 @@ public class PersonQueryService {
 	private static final int TIMELINE_PAGE_SIZE = 20;
 	private static final int TIMELINE_FETCH_SIZE = 21;
 	private static final int TIMELINE_KEYWORD_LIMIT = 3;
+	private static final int MEMORY_MIN_DIARY_COUNT = 3;
+	private static final int MEMORY_GROUP_LIMIT = 20;
+	private static final int MEMORY_STICKER_LIMIT = 3;
 
 	/* 없는 사람과 남의 사람을 같은 응답으로 처리한다. 403 은 존재 여부를 노출한다. */
 	private static final int PERSON_NOT_FOUND_STATUS = 404;
@@ -378,6 +384,180 @@ public class PersonQueryService {
 		);
 	}
 
+	public List<PersonMemoryGroupResponse> getPersonMemories(
+			UUID userId,
+			UUID personId
+	) {
+		requireUserId(userId);
+
+		if (personId == null) {
+			throw new IllegalArgumentException(
+					"personId must not be null"
+			);
+		}
+
+		memoryPersonRepository
+				.findByIdAndUserId(
+						personId,
+						userId
+				)
+				.orElseThrow(
+						() -> new CustomException(
+								PERSON_NOT_FOUND_MESSAGE,
+								PERSON_NOT_FOUND_STATUS
+						)
+				);
+
+		personAggregateRepository
+				.findById(personId)
+				.filter(
+						aggregate ->
+								aggregate.getMentionCount() > 0
+				)
+				.orElseThrow(
+						() -> new CustomException(
+								PERSON_NOT_FOUND_MESSAGE,
+								PERSON_NOT_FOUND_STATUS
+						)
+				);
+
+		List<PersonEntityStat> eligibleStats =
+				new ArrayList<>();
+
+		for (PersonEntityStat stat :
+				mentionCandidateRepository.findPersonEntityStats(
+						userId,
+						personId
+				)) {
+
+			if (stat.getDiaryCount()
+					>= MEMORY_MIN_DIARY_COUNT) {
+				eligibleStats.add(stat);
+			}
+		}
+
+		eligibleStats.sort(
+				(left, right) -> {
+					int lastDateCompare =
+							right.getLastEntryDate()
+									.compareTo(
+											left.getLastEntryDate()
+									);
+
+					if (lastDateCompare != 0) {
+						return lastDateCompare;
+					}
+
+					int countCompare =
+							Long.compare(
+									right.getDiaryCount(),
+									left.getDiaryCount()
+							);
+
+					if (countCompare != 0) {
+						return countCompare;
+					}
+
+					return left.getNormalizedText()
+							.compareTo(
+									right.getNormalizedText()
+							);
+				}
+		);
+
+		if (eligibleStats.size()
+				> MEMORY_GROUP_LIMIT) {
+			eligibleStats =
+					new ArrayList<>(
+							eligibleStats.subList(
+									0,
+									MEMORY_GROUP_LIMIT
+							)
+					);
+		}
+
+		if (eligibleStats.isEmpty()) {
+			return List.of();
+		}
+
+		List<PersonMemoryDiaryRow> memoryRows =
+				mentionCandidateRepository
+						.findPersonMemoryDiaries(
+								userId,
+								personId
+						);
+
+		Set<UUID> allDiaryIds =
+				new LinkedHashSet<>();
+
+		for (PersonMemoryDiaryRow row : memoryRows) {
+			allDiaryIds.add(
+					row.getDiaryId()
+			);
+		}
+
+		List<Sticker> stickers =
+				allDiaryIds.isEmpty()
+						? List.of()
+						: stickerRepository.findByDiaryIdIn(
+						new ArrayList<>(allDiaryIds)
+				);
+
+		List<PersonMemoryGroupResponse> responses =
+				new ArrayList<>();
+
+		for (PersonEntityStat stat : eligibleStats) {
+
+			List<PersonMemoryDiaryRow> groupRows =
+					new ArrayList<>();
+
+			List<PersonMemoryDiaryResponse> diaries =
+					new ArrayList<>();
+
+			for (PersonMemoryDiaryRow row : memoryRows) {
+
+				if (row.getEntityType()
+						!= stat.getEntityType()) {
+					continue;
+				}
+
+				if (!row.getNormalizedText()
+						.equals(
+								stat.getNormalizedText()
+						)) {
+					continue;
+				}
+
+				groupRows.add(row);
+
+				diaries.add(
+						new PersonMemoryDiaryResponse(
+								row.getDiaryId(),
+								row.getEntryDate(),
+								row.getTitle()
+						)
+				);
+			}
+
+			responses.add(
+					new PersonMemoryGroupResponse(
+							stat.getEntityType(),
+							stat.getNormalizedText(),
+							stat.getFirstEntryDate(),
+							stat.getLastEntryDate(),
+							stat.getDiaryCount(),
+							selectMemoryStickerUrls(
+									stickers,
+									groupRows
+							),
+							diaries
+					)
+			);
+		}
+
+		return responses;
+	}
+
 
 	private List<PersonEntityStatResponse> getTopEntityStats(
 			List<PersonEntityStat> stats,
@@ -678,5 +858,80 @@ public class PersonQueryService {
 
 			return;
 		}
+	}
+
+	private List<String> selectMemoryStickerUrls(
+			List<Sticker> stickers,
+			List<PersonMemoryDiaryRow> groupRows
+	) {
+		Map<UUID, LocalDate> entryDates =
+				new HashMap<>();
+
+		for (PersonMemoryDiaryRow row : groupRows) {
+			entryDates.put(
+					row.getDiaryId(),
+					row.getEntryDate()
+			);
+		}
+
+		List<Sticker> groupStickers =
+				new ArrayList<>();
+
+		for (Sticker sticker : stickers) {
+
+			if (entryDates.containsKey(
+					sticker.getDiaryId()
+			)) {
+				groupStickers.add(sticker);
+			}
+		}
+
+		groupStickers.sort(
+				(left, right) -> {
+					int dateCompare =
+							entryDates.get(
+									right.getDiaryId()
+							).compareTo(
+									entryDates.get(
+											left.getDiaryId()
+									)
+							);
+
+					if (dateCompare != 0) {
+						return dateCompare;
+					}
+
+					return left.getDiaryId()
+							.compareTo(
+									right.getDiaryId()
+							);
+				}
+		);
+
+		Set<String> selectedKeywords =
+				new LinkedHashSet<>();
+
+		List<String> stickerUrls =
+				new ArrayList<>();
+
+		for (Sticker sticker : groupStickers) {
+
+			if (stickerUrls.size()
+					>= MEMORY_STICKER_LIMIT) {
+				break;
+			}
+
+			if (!selectedKeywords.add(
+					sticker.getKeyword()
+			)) {
+				continue;
+			}
+
+			stickerUrls.add(
+					sticker.getImageUrl()
+			);
+		}
+
+		return stickerUrls;
 	}
 }
