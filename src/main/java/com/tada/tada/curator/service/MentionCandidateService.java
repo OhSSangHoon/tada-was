@@ -27,19 +27,6 @@ public class MentionCandidateService {
 		return mentionCandidateRepository.save(candidate);
 	}
 
-	public boolean hasCandidates(
-			UUID diaryId
-	) {
-		if (diaryId == null) {
-			throw new IllegalArgumentException(
-					"diaryId must not be null"
-			);
-		}
-
-		return mentionCandidateRepository.existsByDiaryId(
-				diaryId
-		);
-	}
 
 	public MentionCandidate createPersonCandidate(
 			UUID diaryId,
