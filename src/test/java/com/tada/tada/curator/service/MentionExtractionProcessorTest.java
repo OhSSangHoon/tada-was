@@ -209,6 +209,7 @@ class MentionExtractionProcessorTest {
 				mentionCandidateService
 						.createPersonCandidateForMatchedPerson(
 								diaryId,
+								userId,
 								"민수",
 								personId
 						)
@@ -247,6 +248,7 @@ class MentionExtractionProcessorTest {
 				mentionCandidateService
 		).createPersonCandidateForMatchedPerson(
 				diaryId,
+				userId,
 				"민수",
 				personId
 		);
@@ -624,6 +626,7 @@ class MentionExtractionProcessorTest {
 				never()
 		).createPersonCandidateForMatchedPerson(
 				eq(diaryId),
+				eq(userId),
 				eq("민혁"),
 				any()
 		);
@@ -748,6 +751,7 @@ class MentionExtractionProcessorTest {
 				never()
 		).createPersonCandidateForMatchedPerson(
 				any(),
+				any(),
 				Mockito.anyString(),
 				any()
 		);
@@ -787,6 +791,97 @@ class MentionExtractionProcessorTest {
 		assertEquals(
 				personId,
 				existingCandidate.getMatchedPersonId()
+		);
+	}
+
+	@Test
+	void KEEP_PERSON_Candidate의_matchedPersonId가_null이면_처리를_중단한다() {
+		UUID diaryId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+
+		Diary diary =
+				Diary.builder()
+						.userId(userId)
+						.entryDate(LocalDate.now())
+						.title("오늘")
+						.content("민수를 만났다")
+						.build();
+
+		MentionCandidate invalidCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"민수",
+						"민수",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						null
+				);
+
+		ExtractionResult extractionResult =
+				new ExtractionResult(
+						List.of(
+								new PersonExtraction(
+										"p1",
+										"민수",
+										"PERSON"
+								)
+						),
+						List.of(),
+						List.of()
+				);
+
+		when(
+				diaryRepository.findByIdForUpdate(
+						diaryId
+				)
+		).thenReturn(
+				Optional.of(diary)
+		);
+
+		when(
+				mentionCandidateService.findAllByDiaryId(
+						diaryId
+				)
+		).thenReturn(
+				List.of(invalidCandidate)
+		);
+
+		assertThrows(
+				IllegalStateException.class,
+				() ->
+						processor.process(
+								new MentionExtractedEvent(
+										diaryId,
+										userId,
+										extractionResult
+								)
+						)
+		);
+
+		verify(
+				mentionCandidateService,
+				never()
+		).createPersonCandidate(
+				any(),
+				any(),
+				Mockito.anyString(),
+				Mockito.anySet()
+		);
+
+		verify(
+				mentionCandidateService,
+				never()
+		).createPersonCandidateForMatchedPerson(
+				any(),
+				any(),
+				Mockito.anyString(),
+				any()
+		);
+
+		verifyNoInteractions(
+				relationService,
+				diaryPersonService,
+				personAggregateService
 		);
 	}
 }

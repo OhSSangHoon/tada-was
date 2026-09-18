@@ -1,6 +1,7 @@
 package com.tada.tada.curator.service;
 
 import com.tada.tada.curator.entity.MentionCandidate;
+import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.model.PersonNormalization;
 import com.tada.tada.curator.validation.ExtractionResultValidator;
@@ -263,6 +264,7 @@ public class MentionExtractionProcessor {
 							mentionCandidateService
 									.createPersonCandidateForMatchedPerson(
 											diaryId,
+											userId,
 											person.rawText(),
 											reusablePersonId
 									);
@@ -285,13 +287,15 @@ public class MentionExtractionProcessor {
 				}
 			}
 
+			UUID matchedPersonId =
+					requireConfirmedPersonId(
+							candidate
+					);
+
 			candidatesByRef.put(
 					person.ref(),
 					candidate
 			);
-
-			UUID matchedPersonId =
-					candidate.getMatchedPersonId();
 
 			assignedPersonIds.add(
 					matchedPersonId
@@ -308,6 +312,41 @@ public class MentionExtractionProcessor {
 		}
 
 		return candidatesByRef;
+	}
+
+	private UUID requireConfirmedPersonId(
+			MentionCandidate candidate
+	) {
+		if (candidate == null) {
+			throw new IllegalStateException(
+					"person candidate must not be null"
+			);
+		}
+
+		if (candidate.getEntityType()
+				!= MentionEntityType.PERSON) {
+			throw new IllegalStateException(
+					"candidate must be PERSON"
+			);
+		}
+
+		if (candidate.getStatus()
+				!= MentionCandidateStatus.CONFIRMED) {
+			throw new IllegalStateException(
+					"person candidate must be CONFIRMED"
+			);
+		}
+
+		UUID matchedPersonId =
+				candidate.getMatchedPersonId();
+
+		if (matchedPersonId == null) {
+			throw new IllegalStateException(
+					"confirmed person candidate must have matchedPersonId"
+			);
+		}
+
+		return matchedPersonId;
 	}
 
 	private void reconcilePlaceCandidates(

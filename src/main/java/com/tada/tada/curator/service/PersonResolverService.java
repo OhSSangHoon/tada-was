@@ -183,6 +183,28 @@ public class PersonResolverService {
 		);
 	}
 
+	UUID requireOwnedPerson(
+			UUID userId,
+			UUID personId
+	) {
+		if (userId == null) {
+			throw new IllegalArgumentException(
+					"userId must not be null"
+			);
+		}
+
+		if (personId == null) {
+			throw new IllegalArgumentException(
+					"personId must not be null"
+			);
+		}
+
+		return validatePersonOwner(
+				userId,
+				personId
+		);
+	}
+
 	private UUID validatePersonOwner(
 			UUID userId,
 			UUID personId

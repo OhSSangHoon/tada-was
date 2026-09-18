@@ -92,12 +92,19 @@ public class MentionCandidateService {
 
 	MentionCandidate createPersonCandidateForMatchedPerson(
 			UUID diaryId,
+			UUID userId,
 			String rawText,
 			UUID matchedPersonId
 	) {
 		if (diaryId == null) {
 			throw new IllegalArgumentException(
 					"diaryId must not be null"
+			);
+		}
+
+		if (userId == null) {
+			throw new IllegalArgumentException(
+					"userId must not be null"
 			);
 		}
 
@@ -113,6 +120,15 @@ public class MentionCandidateService {
 					"matchedPersonId must not be null"
 			);
 		}
+
+		/*
+		 * 같은 ExtractionResult 안에서 이미 확정된 Person을
+		 * 직접 재사용하는 경로도 반드시 현재 사용자 소유인지 확인한다.
+		 */
+		personResolverService.requireOwnedPerson(
+				userId,
+				matchedPersonId
+		);
 
 		PersonNormalization normalization =
 				personNormalizer.normalize(rawText);

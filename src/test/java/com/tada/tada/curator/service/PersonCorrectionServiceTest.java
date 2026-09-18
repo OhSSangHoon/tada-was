@@ -5,10 +5,8 @@ import com.tada.tada.curator.entity.MemoryPerson;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
-import com.tada.tada.curator.entity.PersonAlias;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
-import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.repository.DiaryRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +19,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,11 +27,10 @@ class PersonCorrectionServiceTest {
 
 	private MentionCandidateRepository mentionCandidateRepository;
 	private MemoryPersonRepository memoryPersonRepository;
-	private PersonAliasRepository personAliasRepository;
 	private DiaryRepository diaryRepository;
 	private DiaryPersonService diaryPersonService;
 	private PersonAggregateService personAggregateService;
-	private PersonNormalizer personNormalizer;
+	private PersonAliasService personAliasService;
 
 	private PersonCorrectionService personCorrectionService;
 
@@ -46,9 +42,6 @@ class PersonCorrectionServiceTest {
 		memoryPersonRepository =
 				Mockito.mock(MemoryPersonRepository.class);
 
-		personAliasRepository =
-				Mockito.mock(PersonAliasRepository.class);
-
 		diaryRepository =
 				Mockito.mock(DiaryRepository.class);
 
@@ -58,18 +51,19 @@ class PersonCorrectionServiceTest {
 		personAggregateService =
 				Mockito.mock(PersonAggregateService.class);
 
-		personNormalizer =
-				Mockito.mock(PersonNormalizer.class);
+		personAliasService =
+				Mockito.mock(
+						PersonAliasService.class
+				);
 
 		personCorrectionService =
 				new PersonCorrectionService(
 						mentionCandidateRepository,
 						memoryPersonRepository,
-						personAliasRepository,
 						diaryRepository,
 						diaryPersonService,
 						personAggregateService,
-						personNormalizer
+						personAliasService
 				);
 	}
 
@@ -182,22 +176,6 @@ class PersonCorrectionServiceTest {
 		);
 
 		when(
-				personAliasRepository
-						.existsByOwnerUserIdAndPersonIdAndAliasText(
-								userId,
-								targetPerson.getId(),
-								"민혁이랑"
-						)
-		).thenReturn(false);
-
-		when(
-				personNormalizer
-						.normalizeName(
-								"민혁이랑"
-						)
-		).thenReturn("민혁");
-
-		when(
 				mentionCandidateRepository
 						.findAllByDiaryId(
 								diaryId
@@ -239,8 +217,13 @@ class PersonCorrectionServiceTest {
 						targetPerson.getId()
 				);
 
-		verify(personAliasRepository)
-				.save(any(PersonAlias.class));
+		verify(
+				personAliasService
+		).saveIfAbsent(
+				userId,
+				targetPerson.getId(),
+				"민혁이랑"
+		);
 
 		verify(diaryPersonService)
 				.reconcileDiaryPersons(

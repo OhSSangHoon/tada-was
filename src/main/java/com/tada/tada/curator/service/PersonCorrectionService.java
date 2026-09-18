@@ -5,10 +5,8 @@ import com.tada.tada.curator.entity.MemoryPerson;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
-import com.tada.tada.curator.entity.PersonAlias;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
-import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.global.exception.CustomException;
@@ -30,11 +28,10 @@ public class PersonCorrectionService {
 
 	private final MentionCandidateRepository mentionCandidateRepository;
 	private final MemoryPersonRepository memoryPersonRepository;
-	private final PersonAliasRepository personAliasRepository;
 	private final DiaryRepository diaryRepository;
 	private final DiaryPersonService diaryPersonService;
 	private final PersonAggregateService personAggregateService;
-	private final PersonNormalizer personNormalizer;
+	private final PersonAliasService personAliasService;
 
 	@Transactional
 	public void correctPerson(
@@ -162,10 +159,10 @@ public class PersonCorrectionService {
 				targetPersonId
 		);
 
-		saveAliasIfAbsent(
+		personAliasService.saveIfAbsent(
 				userId,
 				targetPersonId,
-				candidate
+				candidate.getRawText()
 		);
 
 		List<MentionCandidate> personCandidates =
@@ -350,52 +347,5 @@ public class PersonCorrectionService {
 				);
 			}
 		}
-	}
-
-	private void saveAliasIfAbsent(
-			UUID userId,
-			UUID targetPersonId,
-			MentionCandidate candidate
-	) {
-		String aliasText =
-				candidate
-						.getRawText()
-						.strip();
-
-		if (aliasText.isBlank()) {
-			return;
-		}
-
-		boolean exists =
-				personAliasRepository
-						.existsByOwnerUserIdAndPersonIdAndAliasText(
-								userId,
-								targetPersonId,
-								aliasText
-						);
-
-		if (exists) {
-			return;
-		}
-
-		String normalizedText =
-				personNormalizer
-						.normalizeName(
-								aliasText
-						);
-
-		if (normalizedText.isBlank()) {
-			return;
-		}
-
-		PersonAlias alias =
-				PersonAlias.create(
-						targetPersonId,
-						userId,
-						aliasText,
-						normalizedText
-				);
-
-		personAliasRepository.save(alias);
 	}
 }

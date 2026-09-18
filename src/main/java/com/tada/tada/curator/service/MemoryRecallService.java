@@ -96,7 +96,7 @@ public class MemoryRecallService {
 	}
 
 	private List<Diary> findSameWeekdayCandidates(
-			UUID userId,
+			List<Diary> allActiveDiaries,
 			UUID excludeDiaryId
 	) {
 		LocalDate today =
@@ -108,11 +108,7 @@ public class MemoryRecallService {
 		List<Diary> result =
 				new ArrayList<>();
 
-		for (Diary diary :
-				diaryRepository.findByUserIdAndStatus(
-						userId,
-						DiaryStatus.ACTIVE
-				)) {
+		for (Diary diary : allActiveDiaries) {
 
 			LocalDate entryDate =
 					diary.getEntryDate();
@@ -143,43 +139,54 @@ public class MemoryRecallService {
 	}
 
 	private Diary findFirstEntry(
-			UUID userId
+			List<Diary> allActiveDiaries,
+			UUID excludeDiaryId
 	) {
-		return diaryRepository
-				.findByUserIdAndStatus(
-						userId,
-						DiaryStatus.ACTIVE
-				)
-				.stream()
-				.min(
-						Comparator
-								.comparing(
-										Diary::getEntryDate
-								)
-								.thenComparing(
-										Diary::getId
-								)
-				)
-				.orElse(null);
+		Diary firstEntry =
+				allActiveDiaries
+						.stream()
+						.min(
+								Comparator
+										.comparing(
+												Diary::getEntryDate
+										)
+										.thenComparing(
+												Diary::getId
+										)
+						)
+						.orElse(null);
+
+		if (firstEntry == null) {
+			return null;
+		}
+
+		/*
+		 * 최초 일기 자체가 제외 대상이면
+		 * 두 번째 일기를 FIRST_ENTRY로 승격하지 않는다.
+		 *
+		 * 기존 동작과 동일하다.
+		 */
+		if (isExcludedDiary(
+				firstEntry.getId(),
+				excludeDiaryId
+		)) {
+			return null;
+		}
+
+		return firstEntry;
 	}
 
 	private List<Diary> findFallbackCandidates(
-			UUID userId,
+			List<Diary> allActiveDiaries,
 			UUID excludeDiaryId
 	) {
-		List<Diary> all =
-				diaryRepository
-						.findByUserIdAndStatus(
-								userId,
-								DiaryStatus.ACTIVE
-						);
-
 		if (excludeDiaryId == null) {
-			return all;
+			return allActiveDiaries;
 		}
 
 		List<Diary> filtered =
-				all.stream()
+				allActiveDiaries
+						.stream()
 						.filter(
 								diary ->
 										!isExcludedDiary(
@@ -195,7 +202,7 @@ public class MemoryRecallService {
 		 * 같은 카드가 다시 선택되는 것을 허용한다.
 		 */
 		return filtered.isEmpty()
-				? all
+				? allActiveDiaries
 				: filtered;
 	}
 
@@ -218,6 +225,81 @@ public class MemoryRecallService {
 	private record RecallSelection(
 			RecallDiary diary,
 			String displayValue
+	) {
+	}
+
+	private RecallCandidatePool buildRecallCandidatePool(
+			UUID userId,
+			UUID excludeDiaryId
+	) {
+		/*
+		 * SAME_WEEKDAY / FIRST_ENTRY / FALLBACK이
+		 * 모두 같은 ACTIVE Diary 집합을 사용하므로
+		 * 한 번만 조회해서 공유한다.
+		 */
+		List<Diary> allActiveDiaries =
+				diaryRepository
+						.findByUserIdAndStatus(
+								userId,
+								DiaryStatus.ACTIVE
+						);
+
+		List<Diary> twelveMonthCandidates =
+				findMonthRecallCandidates(
+						userId,
+						12,
+						excludeDiaryId
+				);
+
+		List<Diary> sixMonthCandidates =
+				findMonthRecallCandidates(
+						userId,
+						6,
+						excludeDiaryId
+				);
+
+		List<Diary> threeMonthCandidates =
+				findMonthRecallCandidates(
+						userId,
+						3,
+						excludeDiaryId
+				);
+
+		List<Diary> sameWeekdayCandidates =
+				findSameWeekdayCandidates(
+						allActiveDiaries,
+						excludeDiaryId
+				);
+
+		Diary firstEntry =
+				findFirstEntry(
+						allActiveDiaries,
+						excludeDiaryId
+				);
+
+		List<Diary> fallbackCandidates =
+				findFallbackCandidates(
+						allActiveDiaries,
+						excludeDiaryId
+				);
+
+		return new RecallCandidatePool(
+				twelveMonthCandidates,
+				sixMonthCandidates,
+				threeMonthCandidates,
+				sameWeekdayCandidates,
+				firstEntry,
+				fallbackCandidates
+		);
+	}
+
+	private record RecallCandidatePool(
+			List<Diary> twelveMonthCandidates,
+			List<Diary> sixMonthCandidates,
+			List<Diary> threeMonthCandidates,
+			List<Diary> sameWeekdayCandidates,
+			Diary firstEntry,
+			List<Diary> fallbackCandidates
 	) {
 	}
 
@@ -412,41 +494,34 @@ public class MemoryRecallService {
 	}
 
 	private MemoryRecallType selectEventType(
-			UUID userId,
+			RecallCandidatePool candidatePool,
 			List<RecallGroup> personGroups,
-			List<RecallGroup> entityGroups,
-			UUID excludeDiaryId
+			List<RecallGroup> entityGroups
 	) {
 		List<MemoryRecallType> availableTypes =
 				new ArrayList<>();
 
-		if (!findMonthRecallCandidates(
-				userId,
-				12,
-				excludeDiaryId
-		).isEmpty()) {
+		if (!candidatePool
+				.twelveMonthCandidates()
+				.isEmpty()) {
 
 			availableTypes.add(
 					MemoryRecallType.TWELVE_MONTHS_AGO
 			);
 		}
 
-		if (!findMonthRecallCandidates(
-				userId,
-				6,
-				excludeDiaryId
-		).isEmpty()) {
+		if (!candidatePool
+				.sixMonthCandidates()
+				.isEmpty()) {
 
 			availableTypes.add(
 					MemoryRecallType.SIX_MONTHS_AGO
 			);
 		}
 
-		if (!findMonthRecallCandidates(
-				userId,
-				3,
-				excludeDiaryId
-		).isEmpty()) {
+		if (!candidatePool
+				.threeMonthCandidates()
+				.isEmpty()) {
 
 			availableTypes.add(
 					MemoryRecallType.THREE_MONTHS_AGO
@@ -487,25 +562,16 @@ public class MemoryRecallService {
 			);
 		}
 
-		if (!findSameWeekdayCandidates(
-				userId,
-				excludeDiaryId
-		).isEmpty()) {
+		if (!candidatePool
+				.sameWeekdayCandidates()
+				.isEmpty()) {
 
 			availableTypes.add(
 					MemoryRecallType.SAME_WEEKDAY
 			);
 		}
 
-		Diary firstEntry =
-				findFirstEntry(userId);
-
-		if (firstEntry != null
-				&& !isExcludedDiary(
-				firstEntry.getId(),
-				excludeDiaryId
-		)) {
-
+		if (candidatePool.firstEntry() != null) {
 			availableTypes.add(
 					MemoryRecallType.FIRST_ENTRY
 			);
@@ -524,22 +590,18 @@ public class MemoryRecallService {
 	}
 
 	private RecallSelection selectRecallSelection(
-			UUID userId,
 			MemoryRecallType eventType,
+			RecallCandidatePool candidatePool,
 			List<RecallGroup> personGroups,
-			List<RecallGroup> entityGroups,
-			UUID excludeDiaryId
+			List<RecallGroup> entityGroups
 	) {
 		return switch (eventType) {
 
 			case TWELVE_MONTHS_AGO ->
 					new RecallSelection(
 							selectRandomDiary(
-									findMonthRecallCandidates(
-											userId,
-											12,
-											excludeDiaryId
-									)
+									candidatePool
+											.twelveMonthCandidates()
 							),
 							null
 					);
@@ -547,11 +609,8 @@ public class MemoryRecallService {
 			case SIX_MONTHS_AGO ->
 					new RecallSelection(
 							selectRandomDiary(
-									findMonthRecallCandidates(
-											userId,
-											6,
-											excludeDiaryId
-									)
+									candidatePool
+											.sixMonthCandidates()
 							),
 							null
 					);
@@ -559,11 +618,8 @@ public class MemoryRecallService {
 			case THREE_MONTHS_AGO ->
 					new RecallSelection(
 							selectRandomDiary(
-									findMonthRecallCandidates(
-											userId,
-											3,
-											excludeDiaryId
-									)
+									candidatePool
+											.threeMonthCandidates()
 							),
 							null
 					);
@@ -631,19 +687,15 @@ public class MemoryRecallService {
 			case SAME_WEEKDAY ->
 					new RecallSelection(
 							selectRandomDiary(
-									findSameWeekdayCandidates(
-											userId,
-											excludeDiaryId
-									)
+									candidatePool
+											.sameWeekdayCandidates()
 							),
 							null
 					);
 
 			case FIRST_ENTRY -> {
 				Diary diary =
-						findFirstEntry(
-								userId
-						);
+						candidatePool.firstEntry();
 
 				yield new RecallSelection(
 						diary == null
@@ -658,10 +710,8 @@ public class MemoryRecallService {
 			case FALLBACK ->
 					new RecallSelection(
 							selectRandomDiary(
-									findFallbackCandidates(
-											userId,
-											excludeDiaryId
-									)
+									candidatePool
+											.fallbackCandidates()
 							),
 							null
 					);
@@ -871,10 +921,12 @@ public class MemoryRecallService {
 			UUID diaryId
 	) {
 		List<MentionCandidate> candidates =
-				mentionCandidateRepository
-						.findAllByDiaryId(
-								diaryId
-						);
+				new ArrayList<>(
+						mentionCandidateRepository
+								.findAllByDiaryId(
+										diaryId
+								)
+				);
 
 		candidates.sort(
 				Comparator.comparing(
@@ -1083,21 +1135,25 @@ public class MemoryRecallService {
 						excludeDiaryId
 				);
 
+		RecallCandidatePool candidatePool =
+				buildRecallCandidatePool(
+						userId,
+						excludeDiaryId
+				);
+
 		MemoryRecallType eventType =
 				selectEventType(
-						userId,
+						candidatePool,
 						personGroups,
-						entityGroups,
-						excludeDiaryId
+						entityGroups
 				);
 
 		RecallSelection selection =
 				selectRecallSelection(
-						userId,
 						eventType,
+						candidatePool,
 						personGroups,
-						entityGroups,
-						excludeDiaryId
+						entityGroups
 				);
 
 		if (selection == null
