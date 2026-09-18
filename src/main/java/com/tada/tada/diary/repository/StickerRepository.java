@@ -17,6 +17,8 @@ public interface StickerRepository extends JpaRepository<Sticker, UUID> {
 	
 	List<Sticker> findByDiaryIdIn(List<UUID> diaryIds);
 
+	void deleteByDiaryId(UUID diaryId);
+
 	/*
 		사용자가 모은 스티커를 페이지네이션과 함께 조회 (코드리뷰 반영 - 페이지네이션 전환)
        

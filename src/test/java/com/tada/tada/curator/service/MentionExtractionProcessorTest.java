@@ -630,7 +630,7 @@ class MentionExtractionProcessorTest {
 	}
 
 	@Test
-	void 동일_이벤트_재처리는_기존_Candidate를_KEEP하고_새로_생성하지_않는다() {
+	void 동일_이벤트를_두번_처리해도_최종_Candidate_상태는_같다() {
 		UUID diaryId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
 		UUID personId = UUID.randomUUID();
@@ -690,7 +690,19 @@ class MentionExtractionProcessorTest {
 						diaryId
 				)
 		).thenReturn(
+				List.of(),
 				List.of(existingCandidate)
+		);
+
+		when(
+				mentionCandidateService.createPersonCandidate(
+						diaryId,
+						userId,
+						"민수",
+						Set.of()
+				)
+		).thenReturn(
+				existingCandidate
 		);
 
 		when(
@@ -704,9 +716,11 @@ class MentionExtractionProcessorTest {
 		);
 
 		processor.process(event);
+		processor.process(event);
 
 		verify(
-				extractionResultValidator
+				extractionResultValidator,
+				times(2)
 		).validate(
 				"민수를 만났다",
 				extractionResult
@@ -714,12 +728,19 @@ class MentionExtractionProcessorTest {
 
 		verify(
 				mentionCandidateService,
-				never()
+				times(1)
 		).createPersonCandidate(
-				eq(diaryId),
-				eq(userId),
-				Mockito.anyString(),
-				Mockito.anySet()
+				diaryId,
+				userId,
+				"민수",
+				Set.of()
+		);
+
+		verify(
+				mentionCandidateService,
+				times(2)
+		).findAllByDiaryId(
+				diaryId
 		);
 
 		verify(
@@ -732,7 +753,8 @@ class MentionExtractionProcessorTest {
 		);
 
 		verify(
-				diaryPersonService
+				diaryPersonService,
+				times(2)
 		).reconcileDiaryPersons(
 				eq(diaryId),
 				eq(userId),
@@ -745,7 +767,8 @@ class MentionExtractionProcessorTest {
 		);
 
 		verify(
-				personAggregateService
+				personAggregateService,
+				times(2)
 		).recalculate(
 				userId,
 				Set.of(personId)
