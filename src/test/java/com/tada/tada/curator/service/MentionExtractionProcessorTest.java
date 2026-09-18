@@ -1,5 +1,6 @@
 package com.tada.tada.curator.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.tada.tada.curator.entity.MentionCandidate;
 import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
@@ -49,6 +50,7 @@ class MentionExtractionProcessorTest {
 	private DiaryPersonService diaryPersonService;
 	private PersonAggregateService personAggregateService;
 
+
 	private MentionExtractionProcessor processor;
 
 	@BeforeEach
@@ -86,9 +88,10 @@ class MentionExtractionProcessorTest {
 	}
 
 	@Test
-	void 이미_처리된_일기의_중복_이벤트는_다시_처리하지_않는다() {
+	void 동일_이벤트를_두번_처리해도_최종_Candidate_상태는_같다() {
 		UUID diaryId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
 
 		Diary diary =
 				Diary.builder()
@@ -99,9 +102,27 @@ class MentionExtractionProcessorTest {
 						.content("민수를 만났다")
 						.build();
 
+		MentionCandidate candidate =
+				MentionCandidate.create(
+						diaryId,
+						"민수",
+						"민수",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						personId
+				);
+
+		UUID candidateId = candidate.getId();
+
 		ExtractionResult extractionResult =
 				new ExtractionResult(
-						List.of(),
+						List.of(
+								new PersonExtraction(
+										"p1",
+										"민수",
+										"PERSON"
+								)
+						),
 						List.of(),
 						List.of()
 				);
@@ -114,35 +135,102 @@ class MentionExtractionProcessorTest {
 				);
 
 		when(
-				diaryRepository.findByIdForUpdate(diaryId)
+				diaryRepository.findByIdForUpdate(
+						diaryId
+				)
 		).thenReturn(
 				Optional.of(diary)
 		);
 
+		/*
+		 * 첫 처리에서는 기존 Candidate가 없고,
+		 * 두 번째 처리에서는 첫 처리에서 생성된 Candidate가
+		 * 이미 존재한다고 가정한다.
+		 */
 		when(
-				mentionCandidateService.hasCandidates(
+				mentionCandidateService.findAllByDiaryId(
 						diaryId
 				)
-		).thenReturn(true);
-
-		processor.process(event);
-
-		verify(
-				mentionCandidateService
-		).hasCandidates(diaryId);
-
-		verify(
-				extractionResultValidator,
-				never()
-		).validate(
-				Mockito.any(),
-				Mockito.any()
+		).thenReturn(
+				List.of(),
+				List.of(candidate)
 		);
 
-		verifyNoInteractions(
-				relationService,
+		when(
+				mentionCandidateService.createPersonCandidate(
+						diaryId,
+						userId,
+						"민수",
+						Set.of()
+				)
+		).thenReturn(
+				candidate
+		);
+
+		when(
+				diaryPersonService.reconcileDiaryPersons(
+						eq(diaryId),
+						eq(userId),
+						any()
+				)
+		).thenReturn(
+				Set.of(personId)
+		);
+
+		processor.process(event);
+		processor.process(event);
+
+		/*
+		 * 두 번째 처리에서는 기존 Candidate를 KEEP하므로
+		 * 새 Candidate를 만들지 않아야 한다.
+		 */
+		verify(
+				mentionCandidateService,
+				times(1)
+		).createPersonCandidate(
+				diaryId,
+				userId,
+				"민수",
+				Set.of()
+		);
+
+		verify(
+				mentionCandidateService,
+				times(2)
+		).findAllByDiaryId(
+				diaryId
+		);
+
+		verify(
 				diaryPersonService,
-				personAggregateService
+				times(2)
+		).reconcileDiaryPersons(
+				eq(diaryId),
+				eq(userId),
+				any()
+		);
+
+		verify(
+				personAggregateService,
+				times(2)
+		).recalculate(
+				userId,
+				Set.of(personId)
+		);
+
+		assertEquals(
+				candidateId,
+				candidate.getId()
+		);
+
+		assertEquals(
+				MentionCandidateStatus.CONFIRMED,
+				candidate.getStatus()
+		);
+
+		assertEquals(
+				personId,
+				candidate.getMatchedPersonId()
 		);
 	}
 
@@ -340,22 +428,22 @@ class MentionExtractionProcessorTest {
 		verify(memoryPersonRepository, never())
 				.save(any(MemoryPerson.class));
 	}
-	
+
 	@Test
 	void 같은_일기의_성_포함_생략_이름은_자동으로_같은_인물을_재사용하지_않는다() {
 		UUID diaryId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
-		
+
 		UUID fullNamePersonId = UUID.randomUUID();
 		UUID shortNamePersonId = UUID.randomUUID();
-		
+
 		Diary diary = Diary.builder()
 				.userId(userId)
 				.entryDate(LocalDate.now())
 				.title("오늘")
 				.content("김민혁과 민혁을 만났다")
 				.build();
-		
+
 		MentionCandidate fullNameCandidate =
 				MentionCandidate.create(
 						diaryId,
@@ -365,7 +453,7 @@ class MentionExtractionProcessorTest {
 						MentionCandidateStatus.CONFIRMED,
 						fullNamePersonId
 				);
-		
+
 		MentionCandidate shortNameCandidate =
 				MentionCandidate.create(
 						diaryId,
@@ -375,7 +463,7 @@ class MentionExtractionProcessorTest {
 						MentionCandidateStatus.CONFIRMED,
 						shortNamePersonId
 				);
-		
+
 		ExtractionResult extractionResult =
 				new ExtractionResult(
 						List.of(
@@ -393,13 +481,13 @@ class MentionExtractionProcessorTest {
 						List.of(),
 						List.of()
 				);
-		
+
 		when(
 				diaryRepository.findByIdForUpdate(diaryId)
 		).thenReturn(
 				Optional.of(diary)
 		);
-		
+
 		when(
 				mentionCandidateService.createPersonCandidate(
 						diaryId,
@@ -410,7 +498,7 @@ class MentionExtractionProcessorTest {
 		).thenReturn(
 				fullNameCandidate
 		);
-		
+
 		when(
 				mentionCandidateService.createPersonCandidate(
 						diaryId,
@@ -421,7 +509,7 @@ class MentionExtractionProcessorTest {
 		).thenReturn(
 				shortNameCandidate
 		);
-		
+
 		when(
 				diaryPersonService.reconcileDiaryPersons(
 						eq(diaryId),
@@ -434,7 +522,7 @@ class MentionExtractionProcessorTest {
 						shortNamePersonId
 				)
 		);
-		
+
 		processor.process(
 				new MentionExtractedEvent(
 						diaryId,
@@ -442,7 +530,7 @@ class MentionExtractionProcessorTest {
 						extractionResult
 				)
 		);
-		
+
 		verify(
 				mentionCandidateService
 		).createPersonCandidate(
@@ -451,7 +539,7 @@ class MentionExtractionProcessorTest {
 				"김민혁",
 				Set.of()
 		);
-		
+
 		verify(
 				mentionCandidateService
 		).createPersonCandidate(

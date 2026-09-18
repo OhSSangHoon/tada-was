@@ -115,6 +115,31 @@ public interface DiaryPersonRepository
 			@Param("personIds") Collection<UUID> personIds
 	);
 
+	@Query("""
+        SELECT
+            diaryPerson.personId AS personId,
+            person.displayName AS displayName,
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title,
+            diary.content AS content
+        FROM DiaryPerson diaryPerson,
+             Diary diary,
+             MemoryPerson person
+        WHERE diaryPerson.diaryId = diary.id
+          AND diaryPerson.personId = person.id
+          AND diary.userId = :userId
+          AND person.userId = :userId
+          AND diary.status =
+              com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+        ORDER BY diary.entryDate ASC,
+                 diary.id ASC,
+                 person.id ASC
+        """)
+	List<MemoryRecallPersonRow> findMemoryRecallPersonRows(
+			@Param("userId") UUID userId
+	);
+
 	interface PersonStickerRow {
 
 		UUID getPersonId();
@@ -129,5 +154,20 @@ public interface DiaryPersonRepository
 		LocalDate getEntryDate();
 
 		String getTitle();
+	}
+
+	interface MemoryRecallPersonRow {
+
+		UUID getPersonId();
+
+		String getDisplayName();
+
+		UUID getDiaryId();
+
+		LocalDate getEntryDate();
+
+		String getTitle();
+
+		String getContent();
 	}
 }

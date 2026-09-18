@@ -153,6 +153,44 @@ public interface MentionCandidateRepository
 			@Param("diaryIds") List<UUID> diaryIds
 	);
 
+	@Query("""
+        SELECT DISTINCT
+            source.entityType AS entityType,
+            source.normalizedText AS normalizedText,
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title
+        FROM MentionCandidate personCandidate,
+             MentionCandidatePersonRef relation,
+             MentionCandidate source,
+             Diary diary
+        WHERE personCandidate.entityType =
+              com.tada.tada.curator.entity.MentionEntityType.PERSON
+          AND personCandidate.status =
+              com.tada.tada.curator.entity.MentionCandidateStatus.CONFIRMED
+          AND personCandidate.matchedPersonId = :personId
+          AND relation.personCandidateId = personCandidate.id
+          AND source.id = relation.sourceCandidateId
+          AND source.diaryId = personCandidate.diaryId
+          AND source.entityType IN (
+              com.tada.tada.curator.entity.MentionEntityType.PLACE,
+              com.tada.tada.curator.entity.MentionEntityType.ACTIVITY
+          )
+          AND diary.id = source.diaryId
+          AND diary.userId = :userId
+          AND diary.status =
+              com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+        ORDER BY source.entityType ASC,
+                 source.normalizedText ASC,
+                 diary.entryDate ASC,
+                 diary.id ASC
+        """)
+
+	List<PersonMemoryDiaryRow> findPersonMemoryDiaries(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId
+	);
+
 	interface PersonEntityStat {
 
 		MentionEntityType getEntityType();
@@ -185,6 +223,45 @@ public interface MentionCandidateRepository
 			@Param("candidateId") UUID candidateId
 	);
 
+	@Query("""
+        SELECT DISTINCT
+            source.entityType AS entityType,
+            source.normalizedText AS normalizedText,
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title,
+            diary.content AS content
+        FROM MentionCandidate personCandidate,
+             MentionCandidatePersonRef relation,
+             MentionCandidate source,
+             Diary diary
+        WHERE relation.personCandidateId = personCandidate.id
+          AND relation.sourceCandidateId = source.id
+          AND personCandidate.diaryId = source.diaryId
+          AND diary.id = source.diaryId
+          AND diary.userId = :userId
+          AND diary.status =
+              com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+          AND personCandidate.entityType =
+              com.tada.tada.curator.entity.MentionEntityType.PERSON
+          AND personCandidate.status =
+              com.tada.tada.curator.entity.MentionCandidateStatus.CONFIRMED
+          AND personCandidate.matchedPersonId IS NOT NULL
+          AND source.status =
+              com.tada.tada.curator.entity.MentionCandidateStatus.CONFIRMED
+          AND source.entityType IN (
+              com.tada.tada.curator.entity.MentionEntityType.PLACE,
+              com.tada.tada.curator.entity.MentionEntityType.ACTIVITY
+          )
+        ORDER BY source.entityType ASC,
+                 source.normalizedText ASC,
+                 diary.entryDate ASC,
+                 diary.id ASC
+        """)
+	List<MemoryRecallEntityRow> findMemoryRecallEntityRows(
+			@Param("userId") UUID userId
+	);
+
 	interface PersonTimelineCandidateRow {
 
 		UUID getDiaryId();
@@ -199,5 +276,33 @@ public interface MentionCandidateRepository
 		MentionEntityType getEntityType();
 
 		String getNormalizedText();
+	}
+
+	interface PersonMemoryDiaryRow {
+
+		MentionEntityType getEntityType();
+
+		String getNormalizedText();
+
+		UUID getDiaryId();
+
+		LocalDate getEntryDate();
+
+		String getTitle();
+	}
+
+	interface MemoryRecallEntityRow {
+
+		MentionEntityType getEntityType();
+
+		String getNormalizedText();
+
+		UUID getDiaryId();
+
+		LocalDate getEntryDate();
+
+		String getTitle();
+
+		String getContent();
 	}
 }
