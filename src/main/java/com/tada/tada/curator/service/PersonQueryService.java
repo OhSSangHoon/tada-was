@@ -30,6 +30,7 @@ import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.dto.PersonMemoryDiaryResponse;
 import com.tada.tada.curator.dto.PersonMemoryGroupResponse;
 import com.tada.tada.curator.repository.MentionCandidateRepository.PersonMemoryDiaryRow;
+import com.tada.tada.curator.dto.PersonMemoryStickerResponse;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.LinkedHashSet;
@@ -546,7 +547,7 @@ public class PersonQueryService {
 							stat.getFirstEntryDate(),
 							stat.getLastEntryDate(),
 							stat.getDiaryCount(),
-							selectMemoryStickerUrls(
+							selectMemoryStickers(
 									stickers,
 									groupRows
 							),
@@ -860,7 +861,8 @@ public class PersonQueryService {
 		}
 	}
 
-	private List<String> selectMemoryStickerUrls(
+	private List<PersonMemoryStickerResponse>
+	selectMemoryStickers(
 			List<Sticker> stickers,
 			List<PersonMemoryDiaryRow> groupRows
 	) {
@@ -886,6 +888,10 @@ public class PersonQueryService {
 			}
 		}
 
+		/*
+		 * 같은 keyword 대표 Sticker:
+		 * entryDate DESC -> diaryId ASC
+		 */
 		groupStickers.sort(
 				(left, right) -> {
 					int dateCompare =
@@ -911,12 +917,12 @@ public class PersonQueryService {
 		Set<String> selectedKeywords =
 				new LinkedHashSet<>();
 
-		List<String> stickerUrls =
+		List<PersonMemoryStickerResponse> selected =
 				new ArrayList<>();
 
 		for (Sticker sticker : groupStickers) {
 
-			if (stickerUrls.size()
+			if (selected.size()
 					>= MEMORY_STICKER_LIMIT) {
 				break;
 			}
@@ -927,11 +933,14 @@ public class PersonQueryService {
 				continue;
 			}
 
-			stickerUrls.add(
-					sticker.getImageUrl()
+			selected.add(
+					new PersonMemoryStickerResponse(
+							sticker.getImageUrl(),
+							sticker.getKeyword()
+					)
 			);
 		}
 
-		return stickerUrls;
+		return selected;
 	}
 }

@@ -126,7 +126,7 @@ public class PersonResolverService {
 			PersonMatchResult matchResult
 	) {
 		Optional<UUID> reusablePersonId;
-		
+
 		if (matchResult.candidatePersonIds().isEmpty()) {
 			reusablePersonId =
 					personCreationGuard
@@ -152,11 +152,7 @@ public class PersonResolverService {
 							);
 		}
 
-		if (reusablePersonId.isPresent()
-				&& canReuseMatchCandidate(
-				matchResult,
-				reusablePersonId.get()
-		)) {
+		if (reusablePersonId.isPresent()) {
 
 			UUID personId =
 					reusablePersonId.get();
@@ -187,19 +183,26 @@ public class PersonResolverService {
 		);
 	}
 
-	private boolean canReuseMatchCandidate(
-			PersonMatchResult matchResult,
-			UUID reusablePersonId
+	UUID requireOwnedPerson(
+			UUID userId,
+			UUID personId
 	) {
-		return matchResult
-				.candidatePersonIds()
-				.isEmpty()
+		if (userId == null) {
+			throw new IllegalArgumentException(
+					"userId must not be null"
+			);
+		}
 
-				|| matchResult
-				.candidatePersonIds()
-				.contains(
-						reusablePersonId
-				);
+		if (personId == null) {
+			throw new IllegalArgumentException(
+					"personId must not be null"
+			);
+		}
+
+		return validatePersonOwner(
+				userId,
+				personId
+		);
 	}
 
 	private UUID validatePersonOwner(

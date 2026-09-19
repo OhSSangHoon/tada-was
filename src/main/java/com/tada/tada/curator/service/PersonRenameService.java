@@ -2,9 +2,7 @@ package com.tada.tada.curator.service;
 
 import com.tada.tada.curator.dto.PersonRenameForm;
 import com.tada.tada.curator.entity.MemoryPerson;
-import com.tada.tada.curator.entity.PersonAlias;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
-import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,8 +15,7 @@ import java.util.UUID;
 public class PersonRenameService {
 
 	private final MemoryPersonRepository memoryPersonRepository;
-	private final PersonAliasRepository personAliasRepository;
-	private final PersonNormalizer personNormalizer;
+	private final PersonAliasService personAliasService;
 
 	@Transactional
 	public void renamePerson(
@@ -65,7 +62,7 @@ public class PersonRenameService {
 			return;
 		}
 
-		saveOldDisplayNameAsAlias(
+		personAliasService.saveIfAbsent(
 				userId,
 				personId,
 				oldDisplayName
@@ -74,49 +71,5 @@ public class PersonRenameService {
 		person.updateDisplayName(
 				newDisplayName
 		);
-	}
-
-	private void saveOldDisplayNameAsAlias(
-			UUID userId,
-			UUID personId,
-			String oldDisplayName
-	) {
-		String aliasText =
-				oldDisplayName.strip();
-
-		if (aliasText.isBlank()) {
-			return;
-		}
-
-		boolean exists =
-				personAliasRepository
-						.existsByOwnerUserIdAndPersonIdAndAliasText(
-								userId,
-								personId,
-								aliasText
-						);
-
-		if (exists) {
-			return;
-		}
-
-		String normalizedText =
-				personNormalizer.normalizeName(
-						aliasText
-				);
-
-		if (normalizedText.isBlank()) {
-			return;
-		}
-
-		PersonAlias alias =
-				PersonAlias.create(
-						personId,
-						userId,
-						aliasText,
-						normalizedText
-				);
-
-		personAliasRepository.save(alias);
 	}
 }

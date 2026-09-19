@@ -443,12 +443,21 @@ class PersonQueryServiceTest {
 		);
 
 		assertEquals(
-				List.of(
-						"url-5",
-						"url-3",
-						"url-2"
-				),
-				result.get(0).getStickerUrls()
+				List.of("url-5", "url-3", "url-2"),
+				result.get(0)
+						.getStickers()
+						.stream()
+						.map(sticker -> sticker.getImageUrl())
+						.toList()
+		);
+
+		assertEquals(
+				List.of("친구", "커피", "대화"),
+				result.get(0)
+						.getStickers()
+						.stream()
+						.map(sticker -> sticker.getKeyword())
+						.toList()
 		);
 	}
 

@@ -14,7 +14,7 @@ public class PersonMemoryGroupResponse {
 	private final LocalDate firstEntryDate;
 	private final LocalDate lastEntryDate;
 	private final long diaryCount;
-	private final List<String> stickerUrls;
+	private final List<PersonMemoryStickerResponse> stickers;
 	private final List<PersonMemoryDiaryResponse> diaries;
 
 	public PersonMemoryGroupResponse(
@@ -23,7 +23,7 @@ public class PersonMemoryGroupResponse {
 			LocalDate firstEntryDate,
 			LocalDate lastEntryDate,
 			long diaryCount,
-			List<String> stickerUrls,
+			List<PersonMemoryStickerResponse> stickers,
 			List<PersonMemoryDiaryResponse> diaries
 	) {
 		this.groupType = groupType;
@@ -31,7 +31,7 @@ public class PersonMemoryGroupResponse {
 		this.firstEntryDate = firstEntryDate;
 		this.lastEntryDate = lastEntryDate;
 		this.diaryCount = diaryCount;
-		this.stickerUrls = stickerUrls;
+		this.stickers = stickers;
 		this.diaries = diaries;
 	}
 }

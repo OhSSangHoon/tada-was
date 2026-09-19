@@ -8,16 +8,16 @@ import java.util.UUID;
 @Getter
 public class PersonMemoryDiaryResponse {
 
-	private final UUID diaryId;
+	private final UUID id;
 	private final LocalDate entryDate;
 	private final String title;
 
 	public PersonMemoryDiaryResponse(
-			UUID diaryId,
+			UUID id,
 			LocalDate entryDate,
 			String title
 	) {
-		this.diaryId = diaryId;
+		this.id = id;
 		this.entryDate = entryDate;
 		this.title = title;
 	}

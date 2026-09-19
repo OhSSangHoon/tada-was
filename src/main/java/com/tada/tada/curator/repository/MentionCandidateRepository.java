@@ -21,9 +21,6 @@ public interface MentionCandidateRepository
 			UUID diaryId
 	);
 
-	boolean existsByDiaryId(
-			UUID diaryId
-	);
 
 	/*
 	 * Diary 영구삭제 시 호출한다. mention_candidate_person_ref는 FK ON DELETE CASCADE로
