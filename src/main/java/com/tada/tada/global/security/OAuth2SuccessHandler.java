@@ -1,10 +1,10 @@
 package com.tada.tada.global.security;
 
+import com.tada.tada.global.response.ApiResponse;
 import tools.jackson.databind.ObjectMapper;
 import com.tada.tada.auth.dto.AuthResponse;
 import com.tada.tada.auth.service.CustomOAuth2User;
 import com.tada.tada.auth.service.RefreshTokenService;
-import com.tada.tada.global.response.ApiResponse;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,15 +52,32 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 		AuthResponse authResponse =
 				new AuthResponse(accessToken, refreshToken);
 		
-		ApiResponse<AuthResponse> responseBody =
-				ApiResponse.success(authResponse);
-		
-		response.setContentType("application/json");
-		response.setCharacterEncoding("UTF-8");
-		
-		// ApiResponse를 JSON으로 변환해서 응답
-		response.getWriter().write(
-				objectMapper.writeValueAsString(responseBody)
-		);
+		// 프론트에 전달할 인증 정보를 JSON으로 변환한다.
+		String authData =
+				objectMapper.writeValueAsString(authResponse);
+
+		// 소셜 로그인 성공 정보를 부모 창으로 전달하고 팝업을 닫는다.
+			String html = """
+		  <!DOCTYPE html>
+		  <html>
+		  <body>
+		  <script>
+			  window.opener.postMessage(
+				  {
+					  type: "oauth-success",
+					  auth: %s
+				  },
+				  "http://localhost:3000"
+			  );
+	
+			  window.close();
+		  </script>
+		  </body>
+		  </html>
+		  """.formatted(authData);
+			
+			response.setContentType("text/html");
+			response.setCharacterEncoding("UTF-8");
+			response.getWriter().write(html);
 	}
 }

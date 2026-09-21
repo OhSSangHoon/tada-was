@@ -43,11 +43,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			Map<String, Object> kakaoAccount =
 					oAuth2User.getAttribute("kakao_account");
 			
+			// Kakao 프로필 정보를 가져온다.
+			Map<String, Object> profile =
+					(Map<String, Object>) kakaoAccount.get("profile");
+			
 			// Kakao의 고유 ID를 loginId로 사용한다.
 			loginId = oAuth2User.getName();
 			
-			// Kakao에서 받은 이름을 nickname으로 사용한다.
-			nickname = (String) kakaoAccount.get("name");
+			// Kakao 프로필에서 닉네임을 가져온다.
+			nickname = (String) profile.get("nickname");
 			
 			// Naver 사용자 정보 처리
 		} else if ("naver".equals(provider)) {
