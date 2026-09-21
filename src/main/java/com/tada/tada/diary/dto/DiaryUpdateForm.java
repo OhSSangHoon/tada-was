@@ -16,7 +16,7 @@ public class DiaryUpdateForm {
 	@NotBlank
 	private String content;
 
-	// 본문(content)이 실제로 바뀌는 요청일 때만 필수. 제목/날씨만 수정할 땐 null이어도 됨.
-	// TODO: 지금은 n8n 재추출 연동이 없어서 프론트/Postman이 직접 넣어주는 값을 그대로 씀 (createDiary와 동일 패턴) — 5주차 n8n 연동 시 교체
+	// 본문이 바뀔 때 새로 추출한 인물/장소/활동. 없으면(null) 재추출 없이 기존 추출 결과를 유지한다.
+	// TODO: n8n 재추출 연동(5주차) 시 서버가 직접 추출하도록 바꾸고 이 필드는 제거
 	private ExtractionResult extractionResult;
 }

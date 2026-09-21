@@ -152,7 +152,7 @@ class DiaryServiceTest {
 	}
 
 	@Test
-	void 본문이_바뀌는데_extractionResult가_없으면_400을_던지고_수정하지_않는다() {
+	void 본문이_바뀌어도_extractionResult가_없으면_기존_추출결과를_유지하고_DiaryUpdatedEvent만_발행한다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
 		Diary diary = Mockito.mock(Diary.class);
@@ -166,14 +166,11 @@ class DiaryServiceTest {
 		when(diary.isActive()).thenReturn(true);
 		when(diary.getContent()).thenReturn("기존 본문");
 
-		CustomException exception = assertThrows(
-				CustomException.class,
-				() -> diaryService.updateDiary(userId, diaryId, form)
-		);
+		diaryService.updateDiary(userId, diaryId, form);
 
-		assertEquals(400, exception.getStatusCode());
-		verify(diary, never()).update(any(), any(), any());
-		verify(eventPublisher, never()).publishEvent(any());
+		verify(diary).update("제목", null, "새로운 본문");
+		verify(eventPublisher, never()).publishEvent(Mockito.any(MentionExtractedEvent.class));
+		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
 	}
 
 	@Test

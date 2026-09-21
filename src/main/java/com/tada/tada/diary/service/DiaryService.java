@@ -107,16 +107,16 @@ public class DiaryService {
 		String oldContent = diary.getContent();
 		boolean contentChanged = !oldContent.equals(form.getContent());
 
-		if (contentChanged && form.getExtractionResult() == null) {
-			throw new CustomException("본문을 수정할 때는 extractionResult가 필요합니다.", 400);
-		}
-
 		diary.update(form.getTitle(), form.getWeather(), form.getContent());
 
 		if (contentChanged) {
-			eventPublisher.publishEvent(
-					new MentionExtractedEvent(diaryId, userId, form.getExtractionResult())
-			);
+			// extractionResult가 없으면 재추출을 하지 않고 기존 인물/장소/활동을 그대로 둔다.
+			// Curator는 새 추출 결과와 짝이 안 맞는 기존 데이터를 전부 삭제하므로, 빈 값을 넘기면 안 된다.
+			if (form.getExtractionResult() != null) {
+				eventPublisher.publishEvent(
+						new MentionExtractedEvent(diaryId, userId, form.getExtractionResult())
+				);
+			}
 			eventPublisher.publishEvent(
 					new DiaryUpdatedEvent(diaryId, userId, oldContent, form.getContent())
 			);
