@@ -37,7 +37,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
                  AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
-               ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
+               ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC, d.id ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
@@ -70,7 +70,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
                  AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
-               ORDER BY d.entry_date DESC
+               ORDER BY d.entry_date DESC, d.id ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
@@ -103,7 +103,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
                  AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
-               ORDER BY d.entry_date ASC
+               ORDER BY d.entry_date ASC, d.id ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
