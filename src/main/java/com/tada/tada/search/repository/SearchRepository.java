@@ -19,42 +19,11 @@ import java.util.UUID;
 public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	
 	/*
-	   임베딩 벡터를 기반으로 유사한 일기를 페이지네이션과 함께 검색 (관련도순)
-	   - 현재 UI에선 안 쓰이지만, 추후 "관련도순" 정렬 옵션 추가 시를 위해 유지
-	   - threshold: 코사인 거리(embedding <-> :embedding) 기준값. 이 값보다 작아야(=더 유사해야) 후보에 포함
-
-	   @param userId 검색을 요청한 로그인 사용자 ID
-	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
-	   @param threshold 유사도(코사인 거리) 임계값
-	   @param pageable 페이지 정보
-	   @return 유사도순 일기 Page 객체
-	 */
-	@Query(value = """
-               SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
-                     d.weather AS weather, d.content AS content, d.created_at AS createdAt,
-                     s.image_url AS stickerImageUrl
-               FROM diaries d
-               LEFT JOIN stickers s ON s.diary_id = d.id
-               WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
-               ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC, d.id ASC
-            """,
-			countQuery = """
-                  SELECT COUNT(d.id) FROM diaries d
-                  WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
-                  """,
-			nativeQuery = true)
-	Page<SearchResultProjection> findSimilarDiariesWithPagination(
-			@Param("userId") UUID userId,
-			@Param("embedding") String embedding,
-			@Param("threshold") double threshold,
-			Pageable pageable
-	);
-	
-	/*
 	   임베딩 기반 검색 결과를 최신순(entry_date DESC)으로 정렬해서 페이지네이션과 함께 조회
 	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
+	   - "관련도순" 정렬은 별도로 제공하지 않음: 검색 결과는 이미 threshold로 관련 있는 일기만
+	     걸러진 상태이고, 그 안에서 사용자가 고르는 건 날짜 순서뿐이라 관련도는 필터링 기준이지
+	     정렬 기준이 아니라고 판단
 
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
