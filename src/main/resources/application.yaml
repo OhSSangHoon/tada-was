@@ -52,7 +52,7 @@ spring:
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             provider: kakao
             scope:
-              - name
+              - profile_nickname
 
           naver:
             client-id: ${NAVER_CLIENT_ID}
