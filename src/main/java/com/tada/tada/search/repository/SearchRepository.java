@@ -21,9 +21,11 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	/*
 	   임베딩 벡터를 기반으로 유사한 일기를 페이지네이션과 함께 검색 (관련도순)
 	   - 현재 UI에선 안 쓰이지만, 추후 "관련도순" 정렬 옵션 추가 시를 위해 유지
+	   - threshold: 코사인 거리(embedding <-> :embedding) 기준값. 이 값보다 작아야(=더 유사해야) 후보에 포함
 
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
+	   @param threshold 유사도(코사인 거리) 임계값
 	   @param pageable 페이지 정보
 	   @return 유사도순 일기 Page 객체
 	 */
@@ -34,24 +36,29 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                FROM diaries d
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
                   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesWithPagination(
 			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
 			Pageable pageable
 	);
 	
 	/*
 	   임베딩 기반 검색 결과를 최신순(entry_date DESC)으로 정렬해서 페이지네이션과 함께 조회
+	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
 
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
+	   @param threshold 유사도(코사인 거리) 임계값
 	   @param pageable 페이지 정보
 	   @return 최신순으로 정렬된 일기 Page 객체
 	 */
@@ -62,24 +69,29 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                FROM diaries d
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                ORDER BY d.entry_date DESC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
                   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateDesc(
 			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
 			Pageable pageable
 	);
 	
 	/*
 	   임베딩 기반 검색 결과를 오래된순(entry_date ASC)으로 정렬해서 페이지네이션과 함께 조회
+	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
 
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
+	   @param threshold 유사도(코사인 거리) 임계값
 	   @param pageable 페이지 정보
 	   @return 오래된순으로 정렬된 일기 Page 객체
 	 */
@@ -90,16 +102,19 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                FROM diaries d
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                ORDER BY d.entry_date ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
                   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateAsc(
 			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
 			Pageable pageable
 	);
 	

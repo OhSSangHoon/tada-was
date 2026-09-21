@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -113,6 +114,7 @@ class SearchServiceTest {
 		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
+				anyDouble(),
 				eq(pageable)
 		)).thenReturn(projectionPage);
 		
@@ -128,6 +130,7 @@ class SearchServiceTest {
 		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
+				anyDouble(),
 				eq(pageable)
 		);
 	}
@@ -156,7 +159,7 @@ class SearchServiceTest {
 				new PageImpl<>(List.of(projection), pageable, 1);
 		
 		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
-				eq(userId), anyString(), eq(pageable)
+				eq(userId), anyString(), anyDouble(), eq(pageable)
 		)).thenReturn(projectionPage);
 		
 		Page<SearchResultResponse> result =
@@ -174,13 +177,13 @@ class SearchServiceTest {
 				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
 		
 		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
-		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), eq(pageable)))
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), anyDouble(), eq(pageable)))
 				.thenReturn(emptyPage);
 		
 		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
 		
 		// LATEST일 때 최신순(Desc) 메서드만 호출되고 오래된순(Asc)은 호출되지 않아야 함
-		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), eq(pageable));
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), anyDouble(), eq(pageable));
 	}
 	
 	@Test
@@ -192,13 +195,13 @@ class SearchServiceTest {
 				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
 		
 		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
-		when(searchRepository.findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), eq(pageable)))
+		when(searchRepository.findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), anyDouble(), eq(pageable)))
 				.thenReturn(emptyPage);
 		
 		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.OLDEST);
 		
 		// OLDEST일 때 오래된순(Asc) 메서드만 호출되고 최신순(Desc)은 호출되지 않아야 함
-		verify(searchRepository).findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), eq(pageable));
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), anyDouble(), eq(pageable));
 	}
 	
 	private SearchResultProjection createProjection(
