@@ -19,40 +19,78 @@ import java.util.UUID;
 public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	
 	/*
-	   임베딩 벡터를 기반으로 유사한 일기를 페이지네이션과 함께 검색
-	   
-	   쿼리설명
-	   - WHERE d.user_id = :userId 로 로그인한 본인의 일기만 검색 대상으로 제한
-	   - Pageable 객체의 size(기본 3)로 조회 개수 결정
-	   - Pageable 객체의 offset으로 시작 위치 결정
-	   
+	   임베딩 기반 검색 결과를 최신순(entry_date DESC)으로 정렬해서 페이지네이션과 함께 조회
+	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
+	   - "관련도순" 정렬은 별도로 제공하지 않음: 검색 결과는 이미 threshold로 관련 있는 일기만
+	     걸러진 상태이고, 그 안에서 사용자가 고르는 건 날짜 순서뿐이라 관련도는 필터링 기준이지
+	     정렬 기준이 아니라고 판단
+
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
-	   @param pageable 페이지 정보 -Pageable.offset(3)
-	   @return 유사도순 일기 Page 객체
+	   @param threshold 유사도(코사인 거리) 임계값
+	   @param pageable 페이지 정보
+	   @return 최신순으로 정렬된 일기 Page 객체
 	 */
 	@Query(value = """
-       SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
-             d.weather AS weather, d.content AS content, d.created_at AS createdAt
-       FROM diaries d
-       WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-       ORDER BY d.embedding <-> CAST(:embedding AS vector) ASC
-    """,
+               SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
+                     d.weather AS weather, d.content AS content, d.created_at AS createdAt,
+                     s.image_url AS stickerImageUrl
+               FROM diaries d
+               LEFT JOIN stickers s ON s.diary_id = d.id
+               WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+               ORDER BY d.entry_date DESC, d.id ASC
+            """,
 			countQuery = """
-                SELECT COUNT(d.id) FROM diaries d
-                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                """,
+                  SELECT COUNT(d.id) FROM diaries d
+                  WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                  """,
 			nativeQuery = true)
-	Page<SearchResultProjection> findSimilarDiariesWithPagination(
+	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateDesc(
 			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
+			Pageable pageable
+	);
+	
+	/*
+	   임베딩 기반 검색 결과를 오래된순(entry_date ASC)으로 정렬해서 페이지네이션과 함께 조회
+	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
+
+	   @param userId 검색을 요청한 로그인 사용자 ID
+	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
+	   @param threshold 유사도(코사인 거리) 임계값
+	   @param pageable 페이지 정보
+	   @return 오래된순으로 정렬된 일기 Page 객체
+	 */
+	@Query(value = """
+               SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
+                     d.weather AS weather, d.content AS content, d.created_at AS createdAt,
+                     s.image_url AS stickerImageUrl
+               FROM diaries d
+               LEFT JOIN stickers s ON s.diary_id = d.id
+               WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+               ORDER BY d.entry_date ASC, d.id ASC
+            """,
+			countQuery = """
+                  SELECT COUNT(d.id) FROM diaries d
+                  WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                  """,
+			nativeQuery = true)
+	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateAsc(
+			@Param("userId") UUID userId,
+			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
 			Pageable pageable
 	);
 	
 	/*
 	   사용자 ID와 정상 상태 기준으로 일기 조회
 	   - 데이터 검증, 테스트, 관리 목적으로 사용
-	   
+
 	   @param userId 검색할 사용자 ID
 	   @param status 일기 상태 ("ACTIVE" or "TRASHED")
 	   @return 해당하는 일기 리스트
@@ -62,7 +100,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	/*
 	   사용자 ID 기준으로 정상 일기 개수 조회
 	   - 사용자가 작성한 총 일기 수 확인
-	   
+
 	   @param userId 사용자 ID
 	   @param status 일기 상태 ("ACTIVE" OR "TRASHED")
 	   @return 해당하는 일기 개수
@@ -71,13 +109,13 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	
 	/*
 	   임베딩 벡터를 특정 일기(diaryId)에 저장/갱신
-	   
+
 	   -DiaryEmbeddingEventListener에서 사용
 	   -Entity를 조회해서 save() 하는대신, 네이티브 UPDATE 쿼리로 직접 갱신
 		  (Diary.embedding이 아직 float[]로 매핑되어 있어 save()시 타입문제 우려 -> 우회
 	   -@Modifying: SELECT가 아니라 UPDATE 쿼리 표시
 	   -@Transactional : @Modifying 쿼리는 트랜잭션 안에서 실행
-	   
+
 	   @param diaryId 갱신할 일기 ID
 	   @param embedding 새로 계산된 임베딩 벡터 문자열
 	 */

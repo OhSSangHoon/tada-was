@@ -24,14 +24,17 @@ public class SearchResultResponse {
 	private final String weather;
 	private final String content;
 	private final LocalDateTime createdAt;
+	private final String stickerImageUrl;
 	
 	public SearchResultResponse(UUID id, LocalDate entryDate, String title,
-								String weather, String content, LocalDateTime createdAt) {
+								String weather, String content, LocalDateTime createdAt,
+								String stickerImageUrl) {
 		this.id = id;
 		this.entryDate = entryDate;
 		this.title = title;
 		this.weather = weather;
 		this.content = content;
 		this.createdAt = createdAt;
+		this.stickerImageUrl = stickerImageUrl;
 	}
 }

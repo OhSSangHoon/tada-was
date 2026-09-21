@@ -3,6 +3,7 @@ package com.tada.tada.search.service;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
+import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.repository.SearchRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -47,7 +50,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, "   ", pageable)
+				() -> searchService.search(userId, "   ", pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어를 입력해주세요.", exception.getMessage());
@@ -61,7 +64,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, null, pageable)
+				() -> searchService.search(userId, null, pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어를 입력해주세요.", exception.getMessage());
@@ -78,7 +81,7 @@ class SearchServiceTest {
 		
 		CustomException exception = assertThrows(
 				CustomException.class,
-				() -> searchService.search(userId, "기분 좋은 날", pageable)
+				() -> searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST)
 		);
 		
 		assertEquals("검색어 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", exception.getMessage());
@@ -101,31 +104,104 @@ class SearchServiceTest {
 				"좋은 하루",
 				"맑음",
 				"오늘은 기분이 좋았다",
-				LocalDateTime.of(2026, 8, 1, 21, 0)
+				LocalDateTime.of(2026, 8, 1, 21, 0),
+				"https://cdn.example.com/stickers/1.png"
 		);
 		
 		Page<SearchResultProjection> projectionPage =
 				new PageImpl<>(List.of(projection), pageable, 1);
 		
-		when(searchRepository.findSimilarDiariesWithPagination(
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
+				anyDouble(),
 				eq(pageable)
 		)).thenReturn(projectionPage);
 		
 		Page<SearchResultResponse> result =
-				searchService.search(userId, "기분 좋은 날", pageable);
+				searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
 		
 		assertEquals(1, result.getContent().size());
 		assertEquals(diaryId, result.getContent().get(0).getId());
 		assertEquals("좋은 하루", result.getContent().get(0).getTitle());
+		assertEquals("https://cdn.example.com/stickers/1.png", result.getContent().get(0).getStickerImageUrl());
 		
 		// 본인(userId) 기준으로 필터링해서 조회했는지 검증 (다른 사용자 일기 노출 방지)
-		verify(searchRepository).findSimilarDiariesWithPagination(
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(
 				eq(userId),
 				anyString(),
+				anyDouble(),
 				eq(pageable)
 		);
+	}
+	
+	@Test
+	void 스티커가_없는_일기는_stickerImageUrl이_null이다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		UUID diaryId = UUID.randomUUID();
+		// LEFT JOIN에서 매칭되는 스티커가 없는 경우 -> stickerImageUrl null
+		SearchResultProjection projection = createProjection(
+				diaryId,
+				LocalDate.of(2026, 8, 1),
+				"좋은 하루",
+				"맑음",
+				"오늘은 기분이 좋았다",
+				LocalDateTime.of(2026, 8, 1, 21, 0),
+				null
+		);
+		
+		Page<SearchResultProjection> projectionPage =
+				new PageImpl<>(List.of(projection), pageable, 1);
+		
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(
+				eq(userId), anyString(), anyDouble(), eq(pageable)
+		)).thenReturn(projectionPage);
+		
+		Page<SearchResultResponse> result =
+				searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
+		
+		assertNull(result.getContent().get(0).getStickerImageUrl());
+	}
+	
+	@Test
+	void 정렬옵션이_LATEST이면_최신순_리포지토리_메서드를_호출한다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+		when(searchRepository.findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), anyDouble(), eq(pageable)))
+				.thenReturn(emptyPage);
+		
+		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.LATEST);
+		
+		// LATEST일 때 최신순(Desc) 메서드만 호출되고 오래된순(Asc)은 호출되지 않아야 함
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateDesc(eq(userId), anyString(), anyDouble(), eq(pageable));
+	}
+	
+	@Test
+	void 정렬옵션이_OLDEST이면_오래된순_리포지토리_메서드를_호출한다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+		when(searchRepository.findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), anyDouble(), eq(pageable)))
+				.thenReturn(emptyPage);
+		
+		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.OLDEST);
+		
+		// OLDEST일 때 오래된순(Asc) 메서드만 호출되고 최신순(Desc)은 호출되지 않아야 함
+		verify(searchRepository).findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), anyDouble(), eq(pageable));
 	}
 	
 	private SearchResultProjection createProjection(
@@ -134,7 +210,8 @@ class SearchServiceTest {
 			String title,
 			String weather,
 			String content,
-			LocalDateTime createdAt
+			LocalDateTime createdAt,
+			String stickerImageUrl
 	) {
 		SearchResultProjection projection = Mockito.mock(SearchResultProjection.class);
 		
@@ -144,6 +221,7 @@ class SearchServiceTest {
 		when(projection.getWeather()).thenReturn(weather);
 		when(projection.getContent()).thenReturn(content);
 		when(projection.getCreatedAt()).thenReturn(createdAt);
+		when(projection.getStickerImageUrl()).thenReturn(stickerImageUrl);
 		
 		return projection;
 	}
