@@ -3,6 +3,7 @@ package com.tada.tada.curator.service;
 import com.tada.tada.curator.dto.PersonDetailResponse;
 import com.tada.tada.curator.dto.PersonEntityStatResponse;
 import com.tada.tada.curator.dto.PersonSummaryResponse;
+import com.tada.tada.curator.dto.PersonTimelineCandidateResponse;
 import com.tada.tada.curator.entity.MemoryPerson;
 import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.entity.PersonAggregate;
@@ -314,8 +315,8 @@ public class PersonQueryService {
 			);
 		}
 
-		Map<UUID, List<UUID>> candidateIdsByDiary =
-				loadTimelinePersonCandidateIds(
+		Map<UUID, List<PersonTimelineCandidateResponse>> personCandidatesByDiary =
+				loadTimelinePersonCandidates(
 						userId,
 						personId,
 						diaryIds
@@ -360,7 +361,7 @@ public class PersonQueryService {
 			items.add(
 					new PersonTimelineItemResponse(
 							diaryId,
-							candidateIdsByDiary.getOrDefault(
+							personCandidatesByDiary.getOrDefault(
 									diaryId,
 									List.of()
 							),
@@ -667,7 +668,8 @@ public class PersonQueryService {
 		}
 	}
 
-	private Map<UUID, List<UUID>> loadTimelinePersonCandidateIds(
+	private Map<UUID, List<PersonTimelineCandidateResponse>>
+	loadTimelinePersonCandidates(
 			UUID userId,
 			UUID personId,
 			List<UUID> diaryIds
@@ -680,21 +682,25 @@ public class PersonQueryService {
 								diaryIds
 						);
 
-		Map<UUID, List<UUID>> candidateIdsByDiary =
+		Map<UUID, List<PersonTimelineCandidateResponse>>
+				personCandidatesByDiary =
 				new HashMap<>();
 
 		for (PersonTimelineCandidateRow row : rows) {
-			candidateIdsByDiary
+			personCandidatesByDiary
 					.computeIfAbsent(
 							row.getDiaryId(),
 							key -> new ArrayList<>()
 					)
 					.add(
-							row.getPersonCandidateId()
+							new PersonTimelineCandidateResponse(
+									row.getPersonCandidateId(),
+									row.getRawText()
+							)
 					);
 		}
 
-		return candidateIdsByDiary;
+		return personCandidatesByDiary;
 	}
 
 	private Map<UUID, String> loadTimelineStickerUrls(

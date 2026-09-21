@@ -10,7 +10,7 @@ import java.util.UUID;
 public class PersonTimelineItemResponse {
 
 	private final UUID diaryId;
-	private final List<UUID> personCandidateIds;
+	private final List<PersonTimelineCandidateResponse> personCandidates;
 	private final LocalDate entryDate;
 	private final String title;
 	private final String stickerUrl;
@@ -18,14 +18,14 @@ public class PersonTimelineItemResponse {
 
 	public PersonTimelineItemResponse(
 			UUID diaryId,
-			List<UUID> personCandidateIds,
+			List<PersonTimelineCandidateResponse> personCandidates,
 			LocalDate entryDate,
 			String title,
 			String stickerUrl,
 			List<String> keywords
 	) {
 		this.diaryId = diaryId;
-		this.personCandidateIds = personCandidateIds;
+		this.personCandidates = personCandidates;
 		this.entryDate = entryDate;
 		this.title = title;
 		this.stickerUrl = stickerUrl;
