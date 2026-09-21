@@ -4,6 +4,7 @@ import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
 import com.tada.tada.diary.entity.Sticker;
@@ -25,8 +26,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -139,9 +143,19 @@ public class DiaryService {
 		eventPublisher.publishEvent(new DiaryTrashedEvent(diaryId, userId));
 	}
 	
-	public List<DiaryResponse> getAllTrashedDiaries(UUID userId) {
+	public List<TrashedDiaryResponse> getAllTrashedDiaries(UUID userId) {
 		List<Diary> diaries = diaryRepository.findByUserIdAndStatus(userId, DiaryStatus.TRASHED);
-		return diaries.stream().map(DiaryResponse::from).toList();
+		if (diaries.isEmpty()) {
+			return List.of();
+		}
+		
+		List<UUID> diaryIds = diaries.stream().map(Diary::getId).toList();
+		Map<UUID, Sticker> stickersByDiaryId = stickerRepository.findByDiaryIdIn(diaryIds).stream()
+				.collect(Collectors.toMap(Sticker::getDiaryId, Function.identity()));
+		
+		return diaries.stream()
+				.map(diary -> TrashedDiaryResponse.of(diary, stickersByDiaryId.get(diary.getId())))
+				.toList();
 	}
 	
 	@Transactional
@@ -166,6 +180,8 @@ public class DiaryService {
 			}
 			Diary existing = existingActive.get();
 			existing.trash();
+			// 같은 날짜 ACTIVE는 1개만 허용하는 DB 유니크 제약 때문에, 기존 일기의 TRASHED 반영을 먼저 DB에 내보낸 뒤 복원해야 한다
+			diaryRepository.flush();
 			eventPublisher.publishEvent(new DiaryTrashedEvent(existing.getId(), userId));
 		}
 		

@@ -4,6 +4,7 @@ import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.service.DiaryService;
 import com.tada.tada.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -90,10 +91,10 @@ public class DiaryController {
 	}
 	
 	@GetMapping("/trash")
-	public ApiResponse<List<DiaryResponse>> getAllTrashedDiaries(Authentication authentication) {
+	public ApiResponse<List<TrashedDiaryResponse>> getAllTrashedDiaries(Authentication authentication) {
 		UUID userId = (UUID) authentication.getPrincipal();
 
-		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 		return ApiResponse.success(responses);
 	}
 

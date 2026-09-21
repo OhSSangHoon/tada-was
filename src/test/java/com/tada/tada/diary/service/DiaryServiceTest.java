@@ -3,8 +3,10 @@ package com.tada.tada.diary.service;
 import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
+import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
@@ -16,6 +18,7 @@ import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.exception.CustomException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -303,8 +306,11 @@ class DiaryServiceTest {
 
 		diaryService.restoreDiary(userId, diaryId, true);
 
-		verify(existing).trash();
-		verify(target).restore();
+		// 기존 일기의 TRASHED가 DB에 먼저 반영(flush)된 뒤에 대상이 복원돼야 유니크 제약을 안 건드린다
+		InOrder inOrder = Mockito.inOrder(existing, diaryRepository, target);
+		inOrder.verify(existing).trash();
+		inOrder.verify(diaryRepository).flush();
+		inOrder.verify(target).restore();
 		verify(eventPublisher).publishEvent(new DiaryTrashedEvent(existingId, userId));
 		verify(eventPublisher).publishEvent(new DiaryRestoredEvent(diaryId, userId));
 	}
@@ -385,28 +391,42 @@ class DiaryServiceTest {
 	// ----- getAllTrashedDiaries -----
 
 	@Test
-	void TRASHED_상태의_일기_목록을_반환한다() {
+	void TRASHED_상태의_일기_목록에_스티커_정보를_함께_담아_반환한다() {
 		UUID userId = UUID.randomUUID();
+		UUID diaryId1 = UUID.randomUUID();
+		UUID diaryId2 = UUID.randomUUID();
 		Diary trashed1 = Mockito.mock(Diary.class);
 		Diary trashed2 = Mockito.mock(Diary.class);
+		Sticker sticker1 = Mockito.mock(Sticker.class);
 
+		when(trashed1.getId()).thenReturn(diaryId1);
+		when(trashed2.getId()).thenReturn(diaryId2);
+		when(sticker1.getDiaryId()).thenReturn(diaryId1);
+		when(sticker1.getImageUrl()).thenReturn("https://example.com/cat.png");
+		when(sticker1.getKeyword()).thenReturn("고양이");
 		when(diaryRepository.findByUserIdAndStatus(userId, DiaryStatus.TRASHED))
 				.thenReturn(List.of(trashed1, trashed2));
+		when(stickerRepository.findByDiaryIdIn(List.of(diaryId1, diaryId2)))
+				.thenReturn(List.of(sticker1));
 
-		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 
 		assertEquals(2, responses.size());
+		assertEquals("https://example.com/cat.png", responses.get(0).getImageUrl());
+		assertEquals("고양이", responses.get(0).getKeyword());
+		assertNull(responses.get(1).getImageUrl());
 	}
 
 	@Test
-	void TRASHED_일기가_없으면_빈_목록을_반환한다() {
+	void TRASHED_일기가_없으면_스티커_조회_없이_빈_목록을_반환한다() {
 		UUID userId = UUID.randomUUID();
 
 		when(diaryRepository.findByUserIdAndStatus(userId, DiaryStatus.TRASHED))
 				.thenReturn(List.of());
 
-		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 
 		assertTrue(responses.isEmpty());
+		verify(stickerRepository, never()).findByDiaryIdIn(any());
 	}
 }
