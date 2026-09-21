@@ -5,6 +5,7 @@ import com.tada.tada.curator.entity.DiaryPersonId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -37,7 +38,53 @@ public interface DiaryPersonRepository
 			@Param("userId") UUID userId,
 			@Param("personId") UUID personId
 	);
-	
+
+	@Query("""
+        SELECT
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title
+        FROM DiaryPerson diaryPerson, Diary diary
+        WHERE diaryPerson.diaryId = diary.id
+          AND diaryPerson.personId = :personId
+          AND diary.userId = :userId
+          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+          AND (
+                :cursor IS NULL
+                OR diary.entryDate < :cursor
+          )
+        ORDER BY diary.entryDate DESC
+        """)
+	List<PersonTimelineDiaryRow> findTimelineLatest(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			@Param("cursor") LocalDate cursor,
+			Pageable pageable
+	);
+
+	@Query("""
+        SELECT
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title
+        FROM DiaryPerson diaryPerson, Diary diary
+        WHERE diaryPerson.diaryId = diary.id
+          AND diaryPerson.personId = :personId
+          AND diary.userId = :userId
+          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+          AND (
+                :cursor IS NULL
+                OR diary.entryDate > :cursor
+          )
+        ORDER BY diary.entryDate ASC
+        """)
+	List<PersonTimelineDiaryRow> findTimelineOldest(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			@Param("cursor") LocalDate cursor,
+			Pageable pageable
+	);
+
 	/*
 	 * 대표 Sticker = 최근 ACTIVE 일기의 Sticker. 그 일기에 없으면 null이며,
 	 * 옛 일기로 내려가며 찾지 않는다 (카드 날짜와 그림의 일기가 어긋나는 것을 방지).
@@ -73,5 +120,14 @@ public interface DiaryPersonRepository
 		UUID getPersonId();
 
 		String getStickerUrl();
+	}
+
+	interface PersonTimelineDiaryRow {
+
+		UUID getDiaryId();
+
+		LocalDate getEntryDate();
+
+		String getTitle();
 	}
 }

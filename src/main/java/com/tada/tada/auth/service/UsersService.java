@@ -174,4 +174,10 @@ public class UsersService {
 		// 해당 회원의 Refresh Token 삭제
 		refreshTokenRepository.deleteByUserId(userId);
 	}
+	
+	//사용자 ID로 사용자 조회
+	public Users findById(UUID id) {
+		return usersRepository.findById(id)
+				.orElseThrow(() -> new CustomException("사용자를 찾을 수 없습니다.", 404));
+	}
 }

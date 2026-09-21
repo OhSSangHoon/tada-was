@@ -948,4 +948,50 @@ class PersonMatchingServiceTest {
 				result.matchType()
 		);
 	}
+
+	@Test
+	void alias의_애매한_정규화_결과는_exact_근거로_사용하지_않는다() {
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		PersonAlias alias = createPersonAlias(
+				UUID.randomUUID(),
+				personId,
+				userId,
+				"김성은",
+				"김성"
+		);
+
+		when(memoryPersonRepository.findAllByUserIdAndDisplayNameIn(
+				eq(userId),
+				any()
+		)).thenReturn(List.of());
+
+		when(personAliasRepository.findAllByOwnerUserIdAndNormalizedTextIn(
+				eq(userId),
+				any()
+		)).thenReturn(List.of(alias));
+
+		when(personAliasRepository.findAllByOwnerUserIdAndAliasTextIn(
+				eq(userId),
+				any()
+		)).thenReturn(List.of());
+
+		when(memoryPersonRepository.findAllByUserId(userId))
+				.thenReturn(List.of());
+
+		when(personAliasRepository.findAllByOwnerUserId(userId))
+				.thenReturn(List.of(alias));
+
+		PersonMatchResult result =
+				personMatchingService.match(
+						userId,
+						"김성"
+				);
+
+		assertEquals(
+				PersonMatchType.NEW,
+				result.matchType()
+		);
+	}
 }

@@ -1,9 +1,7 @@
 package com.tada.tada.auth.controller;
 
-import com.tada.tada.auth.dto.AuthResponse;
-import com.tada.tada.auth.dto.LoginForm;
-import com.tada.tada.auth.dto.RefreshTokenRequest;
-import com.tada.tada.auth.dto.SignUpForm;
+import com.tada.tada.auth.dto.*;
+import com.tada.tada.auth.entity.Users;
 import com.tada.tada.auth.service.UsersService;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.global.response.ApiResponse;
@@ -34,13 +32,14 @@ public class AuthController {
 	
 	// Access Token 인증 테스트
 	@GetMapping("/me")
-	public ApiResponse<UUID> me(Authentication authentication) {
+	public ApiResponse<MeResponse> me(Authentication authentication) {
 		if (authentication == null || !authentication.isAuthenticated()) {
 			throw new CustomException("인증이 필요합니다.", 401);
 		}
 		
 		UUID userId = (UUID) authentication.getPrincipal();
-		return ApiResponse.success(userId);
+		Users user = usersService.findById(userId); //사용자 정보 조회
+		return ApiResponse.success(new MeResponse(user.getId(), user.getNickname()));
 	}
 	
 	// Refresh Token으로 Access Token 재발급

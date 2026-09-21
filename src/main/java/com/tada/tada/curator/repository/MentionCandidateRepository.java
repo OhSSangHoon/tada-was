@@ -9,7 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface MentionCandidateRepository
 		extends JpaRepository<MentionCandidate, UUID> {
@@ -29,7 +32,7 @@ public interface MentionCandidateRepository
 	void deleteByDiaryId(
 			UUID diaryId
 	);
-	
+
 	/*
 	 * PersonCreationGuard 재사용 판단용 이력 조회. diary.status=ACTIVE 필터가 없으면
 	 * 휴지통 일기의 우연한 표현까지 이력에 섞여 재사용 여부를 좌우하게 된다.
@@ -95,6 +98,61 @@ public interface MentionCandidateRepository
 			@Param("personId") UUID personId
 	);
 
+	@Query("""
+        SELECT
+            personCandidate.diaryId AS diaryId,
+            personCandidate.id AS personCandidateId
+        FROM MentionCandidate personCandidate, Diary diary
+        WHERE personCandidate.diaryId IN :diaryIds
+          AND diary.id = personCandidate.diaryId
+          AND diary.userId = :userId
+          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+          AND personCandidate.entityType =
+              com.tada.tada.curator.entity.MentionEntityType.PERSON
+          AND personCandidate.status =
+              com.tada.tada.curator.entity.MentionCandidateStatus.CONFIRMED
+          AND personCandidate.matchedPersonId = :personId
+        ORDER BY personCandidate.diaryId ASC,
+                 personCandidate.id ASC
+        """)
+	List<PersonTimelineCandidateRow> findTimelinePersonCandidates(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			@Param("diaryIds") List<UUID> diaryIds
+	);
+
+	@Query("""
+        SELECT DISTINCT
+            source.diaryId AS diaryId,
+            source.entityType AS entityType,
+            source.normalizedText AS normalizedText
+        FROM MentionCandidate personCandidate,
+             MentionCandidatePersonRef relation,
+             MentionCandidate source,
+             Diary diary
+        WHERE personCandidate.diaryId IN :diaryIds
+          AND diary.id = personCandidate.diaryId
+          AND diary.userId = :userId
+          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+          AND personCandidate.entityType =
+              com.tada.tada.curator.entity.MentionEntityType.PERSON
+          AND personCandidate.status =
+              com.tada.tada.curator.entity.MentionCandidateStatus.CONFIRMED
+          AND personCandidate.matchedPersonId = :personId
+          AND relation.personCandidateId = personCandidate.id
+          AND source.id = relation.sourceCandidateId
+          AND source.diaryId = personCandidate.diaryId
+          AND source.entityType IN (
+              com.tada.tada.curator.entity.MentionEntityType.PLACE,
+              com.tada.tada.curator.entity.MentionEntityType.ACTIVITY
+          )
+        """)
+	List<PersonTimelineKeywordRow> findTimelineKeywords(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			@Param("diaryIds") List<UUID> diaryIds
+	);
+
 	interface PersonEntityStat {
 
 		MentionEntityType getEntityType();
@@ -106,5 +164,40 @@ public interface MentionCandidateRepository
 		LocalDate getFirstEntryDate();
 
 		LocalDate getLastEntryDate();
+	}
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		SELECT candidate
+		FROM MentionCandidate candidate
+		WHERE candidate.id = :candidateId
+		""")
+	Optional<MentionCandidate> findByIdForUpdate(
+			@Param("candidateId") UUID candidateId
+	);
+
+	@Query("""
+		SELECT candidate.diaryId
+		FROM MentionCandidate candidate
+		WHERE candidate.id = :candidateId
+		""")
+	Optional<UUID> findDiaryIdById(
+			@Param("candidateId") UUID candidateId
+	);
+
+	interface PersonTimelineCandidateRow {
+
+		UUID getDiaryId();
+
+		UUID getPersonCandidateId();
+	}
+
+	interface PersonTimelineKeywordRow {
+
+		UUID getDiaryId();
+
+		MentionEntityType getEntityType();
+
+		String getNormalizedText();
 	}
 }
