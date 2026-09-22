@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -302,10 +301,9 @@ class PersonQueryServiceTest {
 
 		when(
 				diaryPersonRepository
-						.findTimelineLatest(
+						.findTimelineLatestFirst(
 								eq(userId),
 								eq(personId),
-								isNull(),
 								any()
 						)
 		).thenReturn(

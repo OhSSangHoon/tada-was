@@ -264,16 +264,31 @@ public class PersonQueryService {
 		List<PersonTimelineDiaryRow> fetchedRows;
 
 		if (effectiveSort == PersonTimelineSort.OLDEST) {
+
 			fetchedRows =
-					diaryPersonRepository.findTimelineOldest(
+					cursor == null
+							? diaryPersonRepository.findTimelineOldestFirst(
+							userId,
+							personId,
+							pageRequest
+					)
+							: diaryPersonRepository.findTimelineOldestAfter(
 							userId,
 							personId,
 							cursor,
 							pageRequest
 					);
+
 		} else {
+
 			fetchedRows =
-					diaryPersonRepository.findTimelineLatest(
+					cursor == null
+							? diaryPersonRepository.findTimelineLatestFirst(
+							userId,
+							personId,
+							pageRequest
+					)
+							: diaryPersonRepository.findTimelineLatestAfter(
 							userId,
 							personId,
 							cursor,
