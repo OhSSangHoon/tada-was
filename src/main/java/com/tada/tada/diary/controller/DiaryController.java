@@ -1,8 +1,10 @@
 package com.tada.tada.diary.controller;
 
+import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.service.DiaryService;
 import com.tada.tada.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -10,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,6 +64,48 @@ public class DiaryController {
 		UUID userId = (UUID) authentication.getPrincipal();
 		
 		diaryService.trashDiary(userId, id);
+		return ApiResponse.success(null);
+	}
+	
+	@PostMapping("/{id}/restore")
+	public ApiResponse<DiaryResponse> restoreDiary(
+			@PathVariable UUID id,
+			@RequestParam(defaultValue = "false") boolean replace,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		DiaryResponse response = diaryService.restoreDiary(userId, id, replace);
+		return ApiResponse.success(response);
+	}
+	
+	@GetMapping("/can-create")
+	public ApiResponse<CanCreateResponse> canCreate(
+			@RequestParam LocalDate date,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+		
+		CanCreateResponse response = diaryService.canCreate(userId, date);
+		return ApiResponse.success(response);
+	}
+	
+	@GetMapping("/trash")
+	public ApiResponse<List<TrashedDiaryResponse>> getAllTrashedDiaries(Authentication authentication) {
+		UUID userId = (UUID) authentication.getPrincipal();
+
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		return ApiResponse.success(responses);
+	}
+
+	@DeleteMapping("/{id}/permanent")
+	public ApiResponse<Void> permanentlyDeleteDiary(
+			@PathVariable UUID id,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+
+		diaryService.permanentlyDeleteDiary(userId, id);
 		return ApiResponse.success(null);
 	}
 }

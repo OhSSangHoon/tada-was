@@ -1,5 +1,7 @@
 package com.tada.tada.diary.dto;
 
+import com.tada.tada.diary.entity.StickerType;
+import com.tada.tada.global.event.dto.ExtractionResult;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -20,4 +22,16 @@ public class DiaryCreateForm {
 	
 	@NotBlank
 	private String content;
+	
+	@NotBlank
+	private String imageUrl;
+	
+	@NotBlank
+	private String keyword;
+	
+	@NotNull
+	private StickerType type;
+	
+	@NotNull
+	private ExtractionResult extractionResult;
 }

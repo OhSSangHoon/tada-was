@@ -3,9 +3,8 @@ package com.tada.tada.global.event;
 import java.util.UUID;
 
 /**
- * [발행: 민혁] — 30일 경과 후 pg_cron 자동 영구삭제, 또는 사용자의 명시적 영구삭제 시 발행
- * [구독: 한영] — DIARY_PERSON, MENTION_CANDIDATE row 완전 삭제 (이때는 mention_count 추가 조정 없음,
- *                    이미 TRASHED 시점에 감소 처리가 끝나 있으므로)
- * [구독: 형호] — 별도 처리 불필요 (diaries row 자체가 삭제되며 embedding도 같이 사라짐)
+ * 사용되지 않음 (2026-09-06 확정) — 30일 경과 영구삭제는 pg_cron이 아니라 Spring @Scheduled 배치로 구현되고,
+ * 이벤트 발행 대신 민혁의 영구삭제 오케스트레이션 메서드가 한영의 CuratorCleanupService.deleteByDiaryId()를
+ * 같은 트랜잭션에서 절차적으로 직접 호출하는 방식으로 대체됨. 이 클래스는 참고용으로만 남겨둠.
  */
 public record DiaryPermanentlyDeletedEvent(UUID diaryId, UUID userId) {}

@@ -12,13 +12,17 @@ package com.tada.tada.global.exception;
 * */
 
 import com.tada.tada.global.response.ApiResponse;
+import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 	/*
@@ -31,6 +35,22 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 				.status(HttpStatus.NOT_FOUND)
 				.body(ApiResponse.error("요청하신 경로를 찾을 수 없습니다."));
+	}
+
+	/*
+	* 경로는 맞는데 HTTP 메서드가 틀렸을 때(GET으로 POST 전용 API를 호출하는 등) 발생.
+	* 이것도 catch-all(Exception.class)에 걸리면 500으로 잘못 응답하고 스택트레이스만 남아서
+	* 원인 파악이 어려워지므로, 여기서 먼저 잡아 405로 정직하게 응답한다.
+	* */
+	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleHttpRequestMethodNotSupportedException(
+			HttpRequestMethodNotSupportedException e
+	) {
+		return ResponseEntity
+				.status(HttpStatus.METHOD_NOT_ALLOWED)
+				.body(ApiResponse.error(
+						"지원하지 않는 요청 방식입니다. (" + e.getMethod() + ")"
+				));
 	}
 	/*
 	* 우리가 직접 만든 CustomException을 처리.
@@ -65,10 +85,25 @@ public class GlobalExceptionHandler {
 	* 프론트가 JSON 파싱 실패로 또 다른 에러를 겪게 된다.
 	* */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiResponse<Void>> handleEception(Exception e){
+	public ResponseEntity<ApiResponse<Void>> handleException(Exception e){
+		log.error("예상하지 못한 서버 오류", e);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(ApiResponse.error("서버 내부 오류가 발생했습니다."));
+	}
+	
+	/*
+	 * @RequestParam에 붙인 @Min/@Max 같은 검증(파라미터 자체 검증)이 실패했을 때 발생하는 예외.
+	 * @Valid로 감싼 Request DTO 검증 실패는 MethodArgumentNotValidException(위 핸들러)이 잡지만,
+	 * month/year처럼 DTO 없이 파라미터에 직접 붙인 검증은 이 예외로 따로 던져진다.
+	 * (컨트롤러에 @Validated가 붙어있어야 이 검증 자체가 동작함)
+	 * */
+	@ExceptionHandler(ConstraintViolationException.class)
+	public ResponseEntity<ApiResponse<Void>>
+	handleConstraintViolationException(ConstraintViolationException e) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(ApiResponse.error(e.getMessage()));
 	}
 }
 

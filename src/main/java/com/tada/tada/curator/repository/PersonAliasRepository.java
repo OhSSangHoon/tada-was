@@ -8,11 +8,27 @@ import java.util.List;
 import java.util.UUID;
 
 public interface PersonAliasRepository extends JpaRepository<PersonAlias, UUID> {
-	
+
 	List<PersonAlias> findAllByOwnerUserIdAndNormalizedTextIn(
 			UUID ownerUserId,
 			Collection<String> normalizedTexts
 	);
-	
+
+	List<PersonAlias> findAllByOwnerUserIdAndAliasTextIn(
+			UUID ownerUserId,
+			Collection<String> aliasTexts
+	);
+
 	List<PersonAlias> findAllByOwnerUserId(UUID ownerUserId);
+
+	List<PersonAlias> findAllByOwnerUserIdAndPersonIdIn(
+			UUID ownerUserId,
+			Collection<UUID> personIds
+	);
+
+	boolean existsByOwnerUserIdAndPersonIdAndAliasText(
+			UUID ownerUserId,
+			UUID personId,
+			String aliasText
+	);
 }
