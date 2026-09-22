@@ -98,7 +98,8 @@ public interface MentionCandidateRepository
 	@Query("""
         SELECT
             personCandidate.diaryId AS diaryId,
-            personCandidate.id AS personCandidateId
+            personCandidate.id AS personCandidateId,
+            personCandidate.rawText AS rawText
         FROM MentionCandidate personCandidate, Diary diary
         WHERE personCandidate.diaryId IN :diaryIds
           AND diary.id = personCandidate.diaryId
@@ -264,6 +265,8 @@ public interface MentionCandidateRepository
 		UUID getDiaryId();
 
 		UUID getPersonCandidateId();
+
+		String getRawText();
 	}
 
 	interface PersonTimelineKeywordRow {

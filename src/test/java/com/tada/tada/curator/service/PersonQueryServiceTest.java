@@ -9,6 +9,10 @@ import com.tada.tada.curator.repository.PersonAggregateRepository;
 import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.global.exception.CustomException;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.dto.PersonTimelinePageResponse;
+import com.tada.tada.curator.dto.PersonTimelineSort;
+import com.tada.tada.curator.repository.DiaryPersonRepository.PersonTimelineDiaryRow;
+import com.tada.tada.curator.repository.MentionCandidateRepository.PersonTimelineCandidateRow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -208,6 +213,182 @@ class PersonQueryServiceTest {
 		).findFirstEntryDate(
 				userId,
 				personId
+		);
+	}
+
+	@Test
+	void 사람_타임라인은_교정용_PERSON_Candidate의_rawText를_함께_반환한다() {
+		UUID userId =
+				UUID.randomUUID();
+
+		MemoryPerson person =
+				MemoryPerson.create(
+						userId,
+						"민수"
+				);
+
+		UUID personId =
+				person.getId();
+
+		UUID diaryId =
+				UUID.randomUUID();
+
+		UUID candidateId =
+				UUID.randomUUID();
+
+		LocalDate entryDate =
+				LocalDate.of(
+						2026,
+						9,
+						20
+				);
+
+		PersonTimelineDiaryRow diaryRow =
+				Mockito.mock(
+						PersonTimelineDiaryRow.class
+				);
+
+		when(
+				diaryRow.getDiaryId()
+		).thenReturn(
+				diaryId
+		);
+
+		when(
+				diaryRow.getEntryDate()
+		).thenReturn(
+				entryDate
+		);
+
+		when(
+				diaryRow.getTitle()
+		).thenReturn(
+				"민수와 만난 날"
+		);
+
+		PersonTimelineCandidateRow candidateRow =
+				Mockito.mock(
+						PersonTimelineCandidateRow.class
+				);
+
+		when(
+				candidateRow.getDiaryId()
+		).thenReturn(
+				diaryId
+		);
+
+		when(
+				candidateRow.getPersonCandidateId()
+		).thenReturn(
+				candidateId
+		);
+
+		when(
+				candidateRow.getRawText()
+		).thenReturn(
+				"민수랑"
+		);
+
+		when(
+				memoryPersonRepository
+						.findByIdAndUserId(
+								personId,
+								userId
+						)
+		).thenReturn(
+				Optional.of(person)
+		);
+
+		when(
+				diaryPersonRepository
+						.findTimelineLatestFirst(
+								eq(userId),
+								eq(personId),
+								any()
+						)
+		).thenReturn(
+				List.of(diaryRow)
+		);
+
+		when(
+				mentionCandidateRepository
+						.findTimelinePersonCandidates(
+								userId,
+								personId,
+								List.of(diaryId)
+						)
+		).thenReturn(
+				List.of(candidateRow)
+		);
+
+		when(
+				stickerRepository
+						.findByDiaryIdIn(
+								List.of(diaryId)
+						)
+		).thenReturn(
+				List.of()
+		);
+
+		when(
+				mentionCandidateRepository
+						.findTimelineKeywords(
+								userId,
+								personId,
+								List.of(diaryId)
+						)
+		).thenReturn(
+				List.of()
+		);
+
+		when(
+				mentionCandidateRepository
+						.findPersonEntityStats(
+								userId,
+								personId
+						)
+		).thenReturn(
+				List.of()
+		);
+
+		PersonTimelinePageResponse result =
+				personQueryService
+						.getPersonTimeline(
+								userId,
+								personId,
+								PersonTimelineSort.LATEST,
+								null
+						);
+
+		assertEquals(
+				1,
+				result.getItems().size()
+		);
+
+		assertEquals(
+				1,
+				result.getItems()
+						.get(0)
+						.getPersonCandidates()
+						.size()
+		);
+
+		assertEquals(
+				candidateId,
+				result.getItems()
+						.get(0)
+						.getPersonCandidates()
+						.get(0)
+						.getId()
+		);
+
+		assertEquals(
+				"민수랑",
+				result.getItems()
+						.get(0)
+						.getPersonCandidates()
+						.get(0)
+						.getRawText()
 		);
 	}
 
