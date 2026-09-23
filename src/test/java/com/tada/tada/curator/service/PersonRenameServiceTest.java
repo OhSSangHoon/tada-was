@@ -2,12 +2,9 @@ package com.tada.tada.curator.service;
 
 import com.tada.tada.curator.dto.PersonRenameForm;
 import com.tada.tada.curator.entity.MemoryPerson;
-import com.tada.tada.curator.entity.PersonAlias;
 import com.tada.tada.curator.repository.MemoryPersonRepository;
-import com.tada.tada.curator.repository.PersonAliasRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.Optional;
@@ -20,8 +17,7 @@ import static org.mockito.Mockito.when;
 class PersonRenameServiceTest {
 
 	private MemoryPersonRepository memoryPersonRepository;
-	private PersonAliasRepository personAliasRepository;
-	private PersonNormalizer personNormalizer;
+	private PersonAliasService personAliasService;
 
 	private PersonRenameService personRenameService;
 
@@ -30,17 +26,15 @@ class PersonRenameServiceTest {
 		memoryPersonRepository =
 				Mockito.mock(MemoryPersonRepository.class);
 
-		personAliasRepository =
-				Mockito.mock(PersonAliasRepository.class);
-
-		personNormalizer =
-				Mockito.mock(PersonNormalizer.class);
+		personAliasService =
+				Mockito.mock(
+						PersonAliasService.class
+				);
 
 		personRenameService =
 				new PersonRenameService(
 						memoryPersonRepository,
-						personAliasRepository,
-						personNormalizer
+						personAliasService
 				);
 	}
 
@@ -69,20 +63,6 @@ class PersonRenameServiceTest {
 				Optional.of(person)
 		);
 
-		when(
-				personAliasRepository
-						.existsByOwnerUserIdAndPersonIdAndAliasText(
-								userId,
-								personId,
-								"엄마도"
-						)
-		).thenReturn(false);
-
-		when(
-				personNormalizer
-						.normalizeName("엄마도")
-		).thenReturn("엄마");
-
 		personRenameService.renamePerson(
 				userId,
 				personId,
@@ -94,37 +74,12 @@ class PersonRenameServiceTest {
 				person.getDisplayName()
 		);
 
-		ArgumentCaptor<PersonAlias> aliasCaptor =
-				ArgumentCaptor.forClass(
-						PersonAlias.class
-				);
-
-		verify(personAliasRepository)
-				.save(
-						aliasCaptor.capture()
-				);
-
-		PersonAlias savedAlias =
-				aliasCaptor.getValue();
-
-		assertEquals(
-				personId,
-				savedAlias.getPersonId()
-		);
-
-		assertEquals(
+		verify(
+				personAliasService
+		).saveIfAbsent(
 				userId,
-				savedAlias.getOwnerUserId()
-		);
-
-		assertEquals(
-				"엄마도",
-				savedAlias.getAliasText()
-		);
-
-		assertEquals(
-				"엄마",
-				savedAlias.getNormalizedText()
+				personId,
+				"엄마도"
 		);
 
 		verify(memoryPersonRepository)

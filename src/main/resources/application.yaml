@@ -52,7 +52,7 @@ spring:
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             provider: kakao
             scope:
-              - name
+              - profile_nickname
 
           naver:
             client-id: ${NAVER_CLIENT_ID}
@@ -105,7 +105,13 @@ supabase:
     # Supabase Storage에 미리 만들어둬야 하는 버킷 이름 (기본값: stickers)
     bucket: ${SUPABASE_STICKER_BUCKET:stickers}
 
+
 # Voyage API키
 voyage:
   api:
     key: ${VOYAGE_API_KEY}
+
+n8n:
+  # 키워드 -> 스티커 이미지(JPEG 바이트) 동기 생성 웹훅. 워크플로우가 Active 상태여야 동작.
+  sticker-webhook-url: ${STICKER_WEBHOOK_URL}
+

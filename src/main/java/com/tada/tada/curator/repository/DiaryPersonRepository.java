@@ -40,22 +40,37 @@ public interface DiaryPersonRepository
 	);
 
 	@Query("""
-        SELECT
-            diary.id AS diaryId,
-            diary.entryDate AS entryDate,
-            diary.title AS title
-        FROM DiaryPerson diaryPerson, Diary diary
-        WHERE diaryPerson.diaryId = diary.id
-          AND diaryPerson.personId = :personId
-          AND diary.userId = :userId
-          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
-          AND (
-                :cursor IS NULL
-                OR diary.entryDate < :cursor
-          )
-        ORDER BY diary.entryDate DESC
-        """)
-	List<PersonTimelineDiaryRow> findTimelineLatest(
+    SELECT
+        diary.id AS diaryId,
+        diary.entryDate AS entryDate,
+        diary.title AS title
+    FROM DiaryPerson diaryPerson, Diary diary
+    WHERE diaryPerson.diaryId = diary.id
+      AND diaryPerson.personId = :personId
+      AND diary.userId = :userId
+      AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+    ORDER BY diary.entryDate DESC
+    """)
+	List<PersonTimelineDiaryRow> findTimelineLatestFirst(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			Pageable pageable
+	);
+
+	@Query("""
+    SELECT
+        diary.id AS diaryId,
+        diary.entryDate AS entryDate,
+        diary.title AS title
+    FROM DiaryPerson diaryPerson, Diary diary
+    WHERE diaryPerson.diaryId = diary.id
+      AND diaryPerson.personId = :personId
+      AND diary.userId = :userId
+      AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+      AND diary.entryDate < :cursor
+    ORDER BY diary.entryDate DESC
+    """)
+	List<PersonTimelineDiaryRow> findTimelineLatestAfter(
 			@Param("userId") UUID userId,
 			@Param("personId") UUID personId,
 			@Param("cursor") LocalDate cursor,
@@ -63,22 +78,37 @@ public interface DiaryPersonRepository
 	);
 
 	@Query("""
-        SELECT
-            diary.id AS diaryId,
-            diary.entryDate AS entryDate,
-            diary.title AS title
-        FROM DiaryPerson diaryPerson, Diary diary
-        WHERE diaryPerson.diaryId = diary.id
-          AND diaryPerson.personId = :personId
-          AND diary.userId = :userId
-          AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
-          AND (
-                :cursor IS NULL
-                OR diary.entryDate > :cursor
-          )
-        ORDER BY diary.entryDate ASC
-        """)
-	List<PersonTimelineDiaryRow> findTimelineOldest(
+    SELECT
+        diary.id AS diaryId,
+        diary.entryDate AS entryDate,
+        diary.title AS title
+    FROM DiaryPerson diaryPerson, Diary diary
+    WHERE diaryPerson.diaryId = diary.id
+      AND diaryPerson.personId = :personId
+      AND diary.userId = :userId
+      AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+    ORDER BY diary.entryDate ASC
+    """)
+	List<PersonTimelineDiaryRow> findTimelineOldestFirst(
+			@Param("userId") UUID userId,
+			@Param("personId") UUID personId,
+			Pageable pageable
+	);
+
+	@Query("""
+    SELECT
+        diary.id AS diaryId,
+        diary.entryDate AS entryDate,
+        diary.title AS title
+    FROM DiaryPerson diaryPerson, Diary diary
+    WHERE diaryPerson.diaryId = diary.id
+      AND diaryPerson.personId = :personId
+      AND diary.userId = :userId
+      AND diary.status = com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+      AND diary.entryDate > :cursor
+    ORDER BY diary.entryDate ASC
+    """)
+	List<PersonTimelineDiaryRow> findTimelineOldestAfter(
 			@Param("userId") UUID userId,
 			@Param("personId") UUID personId,
 			@Param("cursor") LocalDate cursor,
@@ -115,6 +145,31 @@ public interface DiaryPersonRepository
 			@Param("personIds") Collection<UUID> personIds
 	);
 
+	@Query("""
+        SELECT
+            diaryPerson.personId AS personId,
+            person.displayName AS displayName,
+            diary.id AS diaryId,
+            diary.entryDate AS entryDate,
+            diary.title AS title,
+            diary.content AS content
+        FROM DiaryPerson diaryPerson,
+             Diary diary,
+             MemoryPerson person
+        WHERE diaryPerson.diaryId = diary.id
+          AND diaryPerson.personId = person.id
+          AND diary.userId = :userId
+          AND person.userId = :userId
+          AND diary.status =
+              com.tada.tada.diary.entity.DiaryStatus.ACTIVE
+        ORDER BY diary.entryDate ASC,
+                 diary.id ASC,
+                 person.id ASC
+        """)
+	List<MemoryRecallPersonRow> findMemoryRecallPersonRows(
+			@Param("userId") UUID userId
+	);
+
 	interface PersonStickerRow {
 
 		UUID getPersonId();
@@ -129,5 +184,20 @@ public interface DiaryPersonRepository
 		LocalDate getEntryDate();
 
 		String getTitle();
+	}
+
+	interface MemoryRecallPersonRow {
+
+		UUID getPersonId();
+
+		String getDisplayName();
+
+		UUID getDiaryId();
+
+		LocalDate getEntryDate();
+
+		String getTitle();
+
+		String getContent();
 	}
 }

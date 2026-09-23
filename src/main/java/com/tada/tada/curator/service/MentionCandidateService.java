@@ -8,6 +8,7 @@ import com.tada.tada.curator.repository.MentionCandidateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -26,19 +27,6 @@ public class MentionCandidateService {
 		return mentionCandidateRepository.save(candidate);
 	}
 
-	public boolean hasCandidates(
-			UUID diaryId
-	) {
-		if (diaryId == null) {
-			throw new IllegalArgumentException(
-					"diaryId must not be null"
-			);
-		}
-
-		return mentionCandidateRepository.existsByDiaryId(
-				diaryId
-		);
-	}
 
 	public MentionCandidate createPersonCandidate(
 			UUID diaryId,
@@ -86,6 +74,70 @@ public class MentionCandidateService {
 						rawText,
 						blockedPersonIds
 				);
+
+		MentionCandidate candidate =
+				MentionCandidate.create(
+						diaryId,
+						rawText,
+						normalization.normalizedText(),
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						matchedPersonId
+				);
+
+		return mentionCandidateRepository.save(
+				candidate
+		);
+	}
+
+	MentionCandidate createPersonCandidateForMatchedPerson(
+			UUID diaryId,
+			UUID userId,
+			String rawText,
+			UUID matchedPersonId
+	) {
+		if (diaryId == null) {
+			throw new IllegalArgumentException(
+					"diaryId must not be null"
+			);
+		}
+
+		if (userId == null) {
+			throw new IllegalArgumentException(
+					"userId must not be null"
+			);
+		}
+
+		if (rawText == null
+				|| rawText.isBlank()) {
+			throw new IllegalArgumentException(
+					"rawText must not be blank"
+			);
+		}
+
+		if (matchedPersonId == null) {
+			throw new IllegalArgumentException(
+					"matchedPersonId must not be null"
+			);
+		}
+
+		/*
+		 * 같은 ExtractionResult 안에서 이미 확정된 Person을
+		 * 직접 재사용하는 경로도 반드시 현재 사용자 소유인지 확인한다.
+		 */
+		personResolverService.requireOwnedPerson(
+				userId,
+				matchedPersonId
+		);
+
+		PersonNormalization normalization =
+				personNormalizer.normalize(rawText);
+
+		if (normalization.normalizedText().isBlank()) {
+			throw new IllegalArgumentException(
+					"person normalizedText must not be blank"
+			);
+		}
 
 		MentionCandidate candidate =
 				MentionCandidate.create(
@@ -168,5 +220,23 @@ public class MentionCandidateService {
 
 		return mentionCandidateRepository
 				.findAllByDiaryId(diaryId);
+	}
+
+	public void deleteAll(
+			Collection<MentionCandidate> candidates
+	) {
+		if (candidates == null) {
+			throw new IllegalArgumentException(
+					"candidates must not be null"
+			);
+		}
+
+		if (candidates.isEmpty()) {
+			return;
+		}
+
+		mentionCandidateRepository.deleteAll(
+				candidates
+		);
 	}
 }

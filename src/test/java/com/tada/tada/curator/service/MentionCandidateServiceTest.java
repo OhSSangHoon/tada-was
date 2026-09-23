@@ -11,6 +11,7 @@ import org.mockito.Mockito;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.mockito.Mockito.never;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -232,6 +233,50 @@ class MentionCandidateServiceTest {
 						"카페",
 						null
 				)
+		);
+	}
+
+	@Test
+	void 직접_재사용할_Person이_다른_사용자_소유면_거부한다() {
+		UUID diaryId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UUID personId = UUID.randomUUID();
+
+		when(
+				personResolverService.requireOwnedPerson(
+						userId,
+						personId
+				)
+		).thenThrow(
+				new IllegalStateException(
+						"matched person belongs to another user"
+				)
+		);
+
+		assertThrows(
+				IllegalStateException.class,
+				() ->
+						mentionCandidateService
+								.createPersonCandidateForMatchedPerson(
+										diaryId,
+										userId,
+										"민수",
+										personId
+								)
+		);
+
+		verify(
+				personResolverService
+		).requireOwnedPerson(
+				userId,
+				personId
+		);
+
+		verify(
+				mentionCandidateRepository,
+				never()
+		).save(
+				any(MentionCandidate.class)
 		);
 	}
 }

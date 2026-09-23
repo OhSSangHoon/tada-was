@@ -7,28 +7,34 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-public class PersonTimelineItemResponse {
+public class MemoryRecallResponse {
 
+	private final MemoryRecallType eventType;
+	private final String message;
 	private final UUID diaryId;
-	private final List<PersonTimelineCandidateResponse> personCandidates;
 	private final LocalDate entryDate;
 	private final String title;
+	private final String contentPreview;
 	private final String stickerUrl;
-	private final List<String> keywords;
+	private final List<String> tags;
 
-	public PersonTimelineItemResponse(
+	public MemoryRecallResponse(
+			MemoryRecallType eventType,
+			String message,
 			UUID diaryId,
-			List<PersonTimelineCandidateResponse> personCandidates,
 			LocalDate entryDate,
 			String title,
+			String contentPreview,
 			String stickerUrl,
-			List<String> keywords
+			List<String> tags
 	) {
+		this.eventType = eventType;
+		this.message = message;
 		this.diaryId = diaryId;
-		this.personCandidates = personCandidates;
 		this.entryDate = entryDate;
 		this.title = title;
+		this.contentPreview = contentPreview;
 		this.stickerUrl = stickerUrl;
-		this.keywords = keywords;
+		this.tags = tags;
 	}
 }

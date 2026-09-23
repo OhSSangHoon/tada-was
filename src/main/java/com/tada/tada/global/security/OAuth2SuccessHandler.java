@@ -4,11 +4,11 @@ import tools.jackson.databind.ObjectMapper;
 import com.tada.tada.auth.dto.AuthResponse;
 import com.tada.tada.auth.service.CustomOAuth2User;
 import com.tada.tada.auth.service.RefreshTokenService;
-import com.tada.tada.global.response.ApiResponse;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -22,6 +22,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 	private final JwtUtil jwtUtil;
 	private final RefreshTokenService refreshTokenService;
 	private final ObjectMapper objectMapper;
+	
+	// 로컬에서는 localhost:3000,
+	// 배포 환경에서는 FRONTEND_URL 환경변수를 사용한다.
+	@Value("${FRONTEND_URL:http://localhost:3000}")
+	private String frontendUrl;
 	
 	@Override
 	public void onAuthenticationSuccess(
@@ -52,15 +57,38 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 		AuthResponse authResponse =
 				new AuthResponse(accessToken, refreshToken);
 		
-		ApiResponse<AuthResponse> responseBody =
-				ApiResponse.success(authResponse);
+		// 프론트에 전달할 인증 정보를 JSON으로 변환한다.
+		String authData =
+				objectMapper.writeValueAsString(authResponse);
 		
-		response.setContentType("application/json");
+		// postMessage의 targetOrigin도 JSON 문자열로 변환한다.
+		String frontendOrigin =
+				objectMapper.writeValueAsString(frontendUrl);
+		
+		// 소셜 로그인 성공 정보를 부모 창으로 전달하고 팝업을 닫는다.
+		String html = """
+             <!DOCTYPE html>
+             <html>
+             <body>
+             <script>
+                if (window.opener) {
+                   window.opener.postMessage(
+                      {
+                         type: "oauth-success",
+                         auth: %s
+                      },
+                      %s
+                   );
+                }
+
+                window.close();
+             </script>
+             </body>
+             </html>
+             """.formatted(authData, frontendOrigin);
+		
+		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		
-		// ApiResponse를 JSON으로 변환해서 응답
-		response.getWriter().write(
-				objectMapper.writeValueAsString(responseBody)
-		);
+		response.getWriter().write(html);
 	}
 }

@@ -190,7 +190,8 @@ class ExtractionResultValidatorTest {
 				"그", "그녀", "걔", "쟤", "얘",
 				"우리", "저희", "누구", "아무",
 				"사람들", "다들", "모두", "애들", "친구들",
-				"그는", "걔가", "사람들이", "모두가"
+				"그는", "걔가", "사람들이", "모두가", "여러 명", "몇 명",
+				"세 명", "세명", "3명", "두 사람"
 		)) {
 			assertThrows(
 					ExtractionValidationException.class,

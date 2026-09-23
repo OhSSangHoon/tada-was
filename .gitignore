@@ -38,5 +38,7 @@ out/
 
 .env.local
 
+.claude/
+
 ### Markdown (팀 결정: md 파일은 공유하지 않음) ###
 *.md

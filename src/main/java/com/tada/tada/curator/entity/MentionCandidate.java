@@ -57,6 +57,28 @@ public class MentionCandidate {
 		return candidate;
 	}
 
+	public void updateText(
+			String rawText,
+			String normalizedText
+	) {
+		if (rawText == null
+				|| rawText.isBlank()) {
+			throw new IllegalArgumentException(
+					"rawText must not be blank"
+			);
+		}
+
+		if (normalizedText == null
+				|| normalizedText.isBlank()) {
+			throw new IllegalArgumentException(
+					"normalizedText must not be blank"
+			);
+		}
+
+		this.rawText = rawText;
+		this.normalizedText = normalizedText;
+	}
+
 	public void confirmPerson(UUID personId) {
 		if (personId == null) {
 			throw new IllegalArgumentException("personId must not be null");

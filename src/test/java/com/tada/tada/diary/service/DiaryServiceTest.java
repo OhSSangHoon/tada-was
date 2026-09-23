@@ -2,15 +2,26 @@ package com.tada.tada.diary.service;
 
 import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryResponse;
+import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.GenerateStickerResponse;
+import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
+import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
+import com.tada.tada.curator.service.CuratorCleanupService;
+import com.tada.tada.global.client.StickerWebhookClient;
+import com.tada.tada.global.client.SupabaseStorageClient;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
+import com.tada.tada.global.event.DiaryUpdatedEvent;
+import com.tada.tada.global.event.MentionExtractedEvent;
+import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.exception.CustomException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -35,6 +46,9 @@ class DiaryServiceTest {
 
 	private DiaryRepository diaryRepository;
 	private StickerRepository stickerRepository;
+	private CuratorCleanupService curatorCleanupService;
+	private StickerWebhookClient stickerWebhookClient;
+	private SupabaseStorageClient supabaseStorageClient;
 	private ApplicationEventPublisher eventPublisher;
 	private DiaryService diaryService;
 
@@ -46,6 +60,15 @@ class DiaryServiceTest {
 		stickerRepository =
 				Mockito.mock(StickerRepository.class);
 
+		curatorCleanupService =
+				Mockito.mock(CuratorCleanupService.class);
+
+		stickerWebhookClient =
+				Mockito.mock(StickerWebhookClient.class);
+
+		supabaseStorageClient =
+				Mockito.mock(SupabaseStorageClient.class);
+
 		eventPublisher =
 				Mockito.mock(ApplicationEventPublisher.class);
 
@@ -53,8 +76,138 @@ class DiaryServiceTest {
 				new DiaryService(
 						diaryRepository,
 						stickerRepository,
+						curatorCleanupService,
+						stickerWebhookClient,
+						supabaseStorageClient,
 						eventPublisher
 				);
+	}
+
+	// ----- updateDiary -----
+
+	@Test
+	void 수정_대상이_없으면_404를_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		DiaryUpdateForm form = new DiaryUpdateForm();
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.empty());
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.updateDiary(userId, diaryId, form)
+		);
+
+		assertEquals(404, exception.getStatusCode());
+	}
+
+	@Test
+	void 다른_유저의_일기를_수정하려하면_403을_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID ownerId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(ownerId);
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.updateDiary(userId, diaryId, form)
+		);
+
+		assertEquals(403, exception.getStatusCode());
+	}
+
+	@Test
+	void TRASHED_상태의_일기를_수정하려하면_404를_던진다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(false);
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.updateDiary(userId, diaryId, form)
+		);
+
+		assertEquals(404, exception.getStatusCode());
+	}
+
+	@Test
+	void 제목이나_날씨만_바뀌면_이벤트를_발행하지_않는다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("새 제목");
+		form.setWeather("SUNNY");
+		form.setContent("기존 본문");
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		diaryService.updateDiary(userId, diaryId, form);
+
+		verify(diary).update("새 제목", "SUNNY", "기존 본문");
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void 본문이_바뀌어도_extractionResult가_없으면_기존_추출결과를_유지하고_DiaryUpdatedEvent만_발행한다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("제목");
+		form.setContent("새로운 본문");
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		diaryService.updateDiary(userId, diaryId, form);
+
+		verify(diary).update("제목", null, "새로운 본문");
+		verify(eventPublisher, never()).publishEvent(Mockito.any(MentionExtractedEvent.class));
+		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
+	}
+
+	@Test
+	void 본문이_바뀌면_MentionExtractedEvent와_DiaryUpdatedEvent를_둘다_발행한다() {
+		UUID userId = UUID.randomUUID();
+		UUID diaryId = UUID.randomUUID();
+		Diary diary = Mockito.mock(Diary.class);
+		ExtractionResult extractionResult = new ExtractionResult(List.of(), List.of(), List.of());
+		DiaryUpdateForm form = new DiaryUpdateForm();
+		form.setTitle("제목");
+		form.setContent("새로운 본문");
+		form.setExtractionResult(extractionResult);
+
+		when(diaryRepository.findById(diaryId))
+				.thenReturn(Optional.of(diary));
+		when(diary.getUserId()).thenReturn(userId);
+		when(diary.isActive()).thenReturn(true);
+		when(diary.getContent()).thenReturn("기존 본문");
+
+		diaryService.updateDiary(userId, diaryId, form);
+
+		verify(diary).update("제목", null, "새로운 본문");
+		verify(eventPublisher).publishEvent(new MentionExtractedEvent(diaryId, userId, extractionResult));
+		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
 	}
 
 	// ----- restoreDiary -----
@@ -163,8 +316,11 @@ class DiaryServiceTest {
 
 		diaryService.restoreDiary(userId, diaryId, true);
 
-		verify(existing).trash();
-		verify(target).restore();
+		// 기존 일기의 TRASHED가 DB에 먼저 반영(flush)된 뒤에 대상이 복원돼야 유니크 제약을 안 건드린다
+		InOrder inOrder = Mockito.inOrder(existing, diaryRepository, target);
+		inOrder.verify(existing).trash();
+		inOrder.verify(diaryRepository).flush();
+		inOrder.verify(target).restore();
 		verify(eventPublisher).publishEvent(new DiaryTrashedEvent(existingId, userId));
 		verify(eventPublisher).publishEvent(new DiaryRestoredEvent(diaryId, userId));
 	}
@@ -223,7 +379,7 @@ class DiaryServiceTest {
 		CanCreateResponse response = diaryService.canCreate(userId, date);
 
 		assertFalse(response.isCanCreate());
-		assertEquals("하루 생성 횟수 5회 초과", response.getReason());
+		assertEquals("하루 작성 횟수 5회 초과", response.getReason());
 	}
 
 	@Test
@@ -245,28 +401,78 @@ class DiaryServiceTest {
 	// ----- getAllTrashedDiaries -----
 
 	@Test
-	void TRASHED_상태의_일기_목록을_반환한다() {
+	void TRASHED_상태의_일기_목록에_스티커_정보를_함께_담아_반환한다() {
 		UUID userId = UUID.randomUUID();
+		UUID diaryId1 = UUID.randomUUID();
+		UUID diaryId2 = UUID.randomUUID();
 		Diary trashed1 = Mockito.mock(Diary.class);
 		Diary trashed2 = Mockito.mock(Diary.class);
+		Sticker sticker1 = Mockito.mock(Sticker.class);
 
+		when(trashed1.getId()).thenReturn(diaryId1);
+		when(trashed2.getId()).thenReturn(diaryId2);
+		when(sticker1.getDiaryId()).thenReturn(diaryId1);
+		when(sticker1.getImageUrl()).thenReturn("https://example.com/cat.png");
+		when(sticker1.getKeyword()).thenReturn("고양이");
 		when(diaryRepository.findByUserIdAndStatus(userId, DiaryStatus.TRASHED))
 				.thenReturn(List.of(trashed1, trashed2));
+		when(stickerRepository.findByDiaryIdIn(List.of(diaryId1, diaryId2)))
+				.thenReturn(List.of(sticker1));
 
-		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 
 		assertEquals(2, responses.size());
+		assertEquals("https://example.com/cat.png", responses.get(0).getImageUrl());
+		assertEquals("고양이", responses.get(0).getKeyword());
+		assertNull(responses.get(1).getImageUrl());
 	}
 
 	@Test
-	void TRASHED_일기가_없으면_빈_목록을_반환한다() {
+	void TRASHED_일기가_없으면_스티커_조회_없이_빈_목록을_반환한다() {
 		UUID userId = UUID.randomUUID();
 
 		when(diaryRepository.findByUserIdAndStatus(userId, DiaryStatus.TRASHED))
 				.thenReturn(List.of());
 
-		List<DiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
+		List<TrashedDiaryResponse> responses = diaryService.getAllTrashedDiaries(userId);
 
 		assertTrue(responses.isEmpty());
+		verify(stickerRepository, never()).findByDiaryIdIn(any());
+	}
+
+	// ----- generateSticker -----
+
+	@Test
+	void 웹훅_이미지를_Supabase에_업로드하고_URL을_반환한다() {
+		UUID userId = UUID.randomUUID();
+		byte[] imageBytes = {1, 2, 3};
+
+		when(stickerWebhookClient.requestStickerImage("카페"))
+				.thenReturn(imageBytes);
+		when(supabaseStorageClient.uploadFromBytes(eq(imageBytes), any()))
+				.thenReturn("https://example.com/stickers/generated.jpg");
+
+		GenerateStickerResponse response = diaryService.generateSticker(userId, "카페");
+
+		assertEquals("https://example.com/stickers/generated.jpg", response.getImageUrl());
+	}
+
+	@Test
+	void Supabase_업로드_실패시_502_CustomException으로_변환한다() {
+		UUID userId = UUID.randomUUID();
+		byte[] imageBytes = {1, 2, 3};
+
+		when(stickerWebhookClient.requestStickerImage("카페"))
+				.thenReturn(imageBytes);
+		when(supabaseStorageClient.uploadFromBytes(eq(imageBytes), any()))
+				.thenThrow(new org.springframework.web.client.HttpServerErrorException(
+						org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR));
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.generateSticker(userId, "카페")
+		);
+
+		assertEquals(502, exception.getStatusCode());
 	}
 }
