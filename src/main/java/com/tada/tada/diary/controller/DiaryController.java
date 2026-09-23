@@ -4,6 +4,8 @@ import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.GenerateStickerForm;
+import com.tada.tada.diary.dto.GenerateStickerResponse;
 import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.service.DiaryService;
 import com.tada.tada.global.response.ApiResponse;
@@ -79,6 +81,17 @@ public class DiaryController {
 		return ApiResponse.success(response);
 	}
 	
+	@PostMapping("/generate-sticker")
+	public ApiResponse<GenerateStickerResponse> generateSticker(
+			@RequestBody @Valid GenerateStickerForm form,
+			Authentication authentication
+			) {
+		UUID userId = (UUID) authentication.getPrincipal();
+
+		GenerateStickerResponse response = diaryService.generateSticker(userId, form.getKeyword());
+		return ApiResponse.success(response);
+	}
+
 	@GetMapping("/can-create")
 	public ApiResponse<CanCreateResponse> canCreate(
 			@RequestParam LocalDate date,
