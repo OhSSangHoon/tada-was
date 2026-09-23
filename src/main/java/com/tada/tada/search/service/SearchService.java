@@ -38,7 +38,7 @@ public class SearchService {
 	private final VoyageAIEmbeddingService voyageAIEmbeddingService;
 	
 	// 코사인 거리(embedding <-> embedding) 임계값 - 이보다 작아야 "관련 있는" 일기로 간주
-	private static final double SIMILARITY_THRESHOLD = 1.0;
+	private static final double SIMILARITY_THRESHOLD = 0.9;
 	
 	// Voyage AI 429(rate limit) 시 재시도 관련 설정
 	private static final int SEARCH_EMBED_MAX_RETRIES = 2;
@@ -72,7 +72,6 @@ public class SearchService {
 		
 		// float[] 배열을 문자열로 변환 -> pgvector 쿼리 파라미터로 사용
 		String embeddingString = Arrays.toString(embedding);
-		System.out.println("[SEARCH DEBUG] query=" + queryText + " embedding=" + embeddingString);
 		
 		Page<SearchResultProjection> diaryPage = switch (sort) {
 			case LATEST -> searchRepository.findSimilarDiariesOrderByEntryDateDesc(

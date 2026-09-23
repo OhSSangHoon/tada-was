@@ -54,6 +54,9 @@ public class VoyageAIEmbeddingService {
 		}
 		
 		List<Double> vector = response.data().get(0).embedding();
+		if (vector == null) {
+			throw new CustomException("Voyage AI 임베딩 응답의 embedding 필드가 비어있습니다.", 502);
+		}
 		float[] result = new float[vector.size()];
 		for (int i = 0; i < vector.size(); i++) {
 			result[i] = vector.get(i).floatValue();
