@@ -379,7 +379,7 @@ class DiaryServiceTest {
 		CanCreateResponse response = diaryService.canCreate(userId, date);
 
 		assertFalse(response.isCanCreate());
-		assertEquals("하루 생성 횟수 5회 초과", response.getReason());
+		assertEquals("하루 작성 횟수 5회 초과", response.getReason());
 	}
 
 	@Test

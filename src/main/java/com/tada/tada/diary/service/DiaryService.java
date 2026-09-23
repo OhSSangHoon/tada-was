@@ -214,7 +214,7 @@ public class DiaryService {
 		if (todayCount >= DAILY_CREATE_LIMIT) {
 			return CanCreateResponse.builder()
 					.canCreate(false)
-					.reason("하루 생성 횟수 5회 초과")
+					.reason("하루 작성 횟수 5회 초과")
 					.build();
 		}
 		
