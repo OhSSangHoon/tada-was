@@ -104,3 +104,8 @@ supabase:
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
     # Supabase Storage에 미리 만들어둬야 하는 버킷 이름 (기본값: stickers)
     bucket: ${SUPABASE_STICKER_BUCKET:stickers}
+
+# Voyage API키
+voyage:
+  api:
+    key: ${VOYAGE_API_KEY}
