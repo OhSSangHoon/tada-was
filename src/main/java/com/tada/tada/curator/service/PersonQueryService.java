@@ -520,6 +520,16 @@ public class PersonQueryService {
 						new ArrayList<>(allDiaryIds)
 				);
 
+		Map<UUID, String> stickerUrlsByDiary =
+				new HashMap<>();
+
+		for (Sticker sticker : stickers) {
+			stickerUrlsByDiary.put(
+					sticker.getDiaryId(),
+					sticker.getImageUrl()
+			);
+		}
+
 		List<PersonMemoryGroupResponse> responses =
 				new ArrayList<>();
 
@@ -551,7 +561,10 @@ public class PersonQueryService {
 						new PersonMemoryDiaryResponse(
 								row.getDiaryId(),
 								row.getEntryDate(),
-								row.getTitle()
+								row.getTitle(),
+								stickerUrlsByDiary.get(
+										row.getDiaryId()
+								)
 						)
 				);
 			}
