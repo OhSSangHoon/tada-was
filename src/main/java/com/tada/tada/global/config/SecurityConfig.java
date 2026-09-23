@@ -44,10 +44,10 @@ public class SecurityConfig {
 
 	// 소셜 로그인으로 전달받은 사용자 정보를 처리한다.
 	private final CustomOAuth2UserService customOAuth2UserService;
-	
+
 	// 소셜 로그인 성공 후 우리 서비스의 JWT를 발급한다.
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
-	
+
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http
@@ -64,7 +64,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						// 헬스체크용 루트 경로 — 서버 떠있는지 확인용
 						.requestMatchers("/").permitAll()
-						
+
 						// Swagger 문서는 인증 없이 누구나 볼 수 있어야 함
 						.requestMatchers(
 								"/swagger-ui/**",
@@ -79,23 +79,23 @@ public class SecurityConfig {
 								"/oauth2/**",
 								"/login/**"
 						).permitAll()
-						
+
 						// 게스트도 볼 수 있는 화면이 있다면 여기 추가
 						// 예: .requestMatchers("/api/guest/**").permitAll()
-	
+
 						// 그 외 모든 API는 로그인(유효한 Access Token) 필요
 						.anyRequest().authenticated()
 				)
-				
+
 				// OAuth2 소셜 로그인 설정
 				.oauth2Login(oauth2 -> oauth2
-								
+
 								// Google/Kakao에서 받은 사용자 정보를
 								// CustomOAuth2UserService에서 처리한다.
 								.userInfoEndpoint(userInfo -> userInfo
 										.userService(customOAuth2UserService)
 								)
-								
+
 								// 소셜 로그인 성공 후 우리 서비스의 JWT를 발급한다.
 								.successHandler(oAuth2SuccessHandler)
 				);
@@ -126,7 +126,7 @@ public class SecurityConfig {
 				"http://localhost:3000",  // 로컬 프론트 개발 주소
 				"https://tada-frontend-seven.vercel.app" // 배포 프론트 개발 주소
 		));
-		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
 		configuration.setAllowCredentials(true);  // 쿠키(Refresh Token) 주고받으려면 필수
 

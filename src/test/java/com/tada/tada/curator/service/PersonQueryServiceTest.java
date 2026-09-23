@@ -640,6 +640,29 @@ class PersonQueryServiceTest {
 						.map(sticker -> sticker.getKeyword())
 						.toList()
 		);
+
+		assertEquals(
+				5,
+				result.get(0)
+						.getDiaries()
+						.size()
+		);
+
+		assertEquals(
+				"url-1",
+				result.get(0)
+						.getDiaries()
+						.get(0)
+						.getStickerUrl()
+		);
+
+		assertEquals(
+				"url-5",
+				result.get(0)
+						.getDiaries()
+						.get(4)
+						.getStickerUrl()
+		);
 	}
 
 	private PersonEntityStat createStat(
