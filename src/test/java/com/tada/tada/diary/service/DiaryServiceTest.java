@@ -3,6 +3,7 @@ package com.tada.tada.diary.service;
 import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.GenerateStickerResponse;
 import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
@@ -10,6 +11,8 @@ import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
+import com.tada.tada.global.client.StickerWebhookClient;
+import com.tada.tada.global.client.SupabaseStorageClient;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
 import com.tada.tada.global.event.DiaryUpdatedEvent;
@@ -44,6 +47,8 @@ class DiaryServiceTest {
 	private DiaryRepository diaryRepository;
 	private StickerRepository stickerRepository;
 	private CuratorCleanupService curatorCleanupService;
+	private StickerWebhookClient stickerWebhookClient;
+	private SupabaseStorageClient supabaseStorageClient;
 	private ApplicationEventPublisher eventPublisher;
 	private DiaryService diaryService;
 
@@ -58,6 +63,12 @@ class DiaryServiceTest {
 		curatorCleanupService =
 				Mockito.mock(CuratorCleanupService.class);
 
+		stickerWebhookClient =
+				Mockito.mock(StickerWebhookClient.class);
+
+		supabaseStorageClient =
+				Mockito.mock(SupabaseStorageClient.class);
+
 		eventPublisher =
 				Mockito.mock(ApplicationEventPublisher.class);
 
@@ -66,6 +77,8 @@ class DiaryServiceTest {
 						diaryRepository,
 						stickerRepository,
 						curatorCleanupService,
+						stickerWebhookClient,
+						supabaseStorageClient,
 						eventPublisher
 				);
 	}
@@ -366,7 +379,7 @@ class DiaryServiceTest {
 		CanCreateResponse response = diaryService.canCreate(userId, date);
 
 		assertFalse(response.isCanCreate());
-		assertEquals("하루 생성 횟수 5회 초과", response.getReason());
+		assertEquals("하루 작성 횟수 5회 초과", response.getReason());
 	}
 
 	@Test
@@ -425,5 +438,41 @@ class DiaryServiceTest {
 
 		assertTrue(responses.isEmpty());
 		verify(stickerRepository, never()).findByDiaryIdIn(any());
+	}
+
+	// ----- generateSticker -----
+
+	@Test
+	void 웹훅_이미지를_Supabase에_업로드하고_URL을_반환한다() {
+		UUID userId = UUID.randomUUID();
+		byte[] imageBytes = {1, 2, 3};
+
+		when(stickerWebhookClient.requestStickerImage("카페"))
+				.thenReturn(imageBytes);
+		when(supabaseStorageClient.uploadFromBytes(eq(imageBytes), any()))
+				.thenReturn("https://example.com/stickers/generated.jpg");
+
+		GenerateStickerResponse response = diaryService.generateSticker(userId, "카페");
+
+		assertEquals("https://example.com/stickers/generated.jpg", response.getImageUrl());
+	}
+
+	@Test
+	void Supabase_업로드_실패시_502_CustomException으로_변환한다() {
+		UUID userId = UUID.randomUUID();
+		byte[] imageBytes = {1, 2, 3};
+
+		when(stickerWebhookClient.requestStickerImage("카페"))
+				.thenReturn(imageBytes);
+		when(supabaseStorageClient.uploadFromBytes(eq(imageBytes), any()))
+				.thenThrow(new org.springframework.web.client.HttpServerErrorException(
+						org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR));
+
+		CustomException exception = assertThrows(
+				CustomException.class,
+				() -> diaryService.generateSticker(userId, "카페")
+		);
+
+		assertEquals(502, exception.getStatusCode());
 	}
 }

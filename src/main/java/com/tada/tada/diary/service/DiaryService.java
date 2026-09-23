@@ -4,6 +4,7 @@ import com.tada.tada.diary.dto.CanCreateResponse;
 import com.tada.tada.diary.dto.DiaryCreateForm;
 import com.tada.tada.diary.dto.DiaryResponse;
 import com.tada.tada.diary.dto.DiaryUpdateForm;
+import com.tada.tada.diary.dto.GenerateStickerResponse;
 import com.tada.tada.diary.dto.TrashedDiaryResponse;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.entity.DiaryStatus;
@@ -11,6 +12,8 @@ import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
+import com.tada.tada.global.client.StickerWebhookClient;
+import com.tada.tada.global.client.SupabaseStorageClient;
 import com.tada.tada.global.event.DiaryCreatedEvent;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
@@ -18,9 +21,11 @@ import com.tada.tada.global.event.DiaryUpdatedEvent;
 import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,6 +37,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -40,9 +46,11 @@ public class DiaryService {
 	private final DiaryRepository diaryRepository;
 	private final StickerRepository stickerRepository;
 	private final CuratorCleanupService curatorCleanupService;
+	private final StickerWebhookClient stickerWebhookClient;
+	private final SupabaseStorageClient supabaseStorageClient;
 	private final ApplicationEventPublisher eventPublisher;
-	private static final int NEARBY_DATE_RANGE_DAYS = 3;
 	private static final int DAILY_CREATE_LIMIT = 5;
+	private static final String STICKER_OBJECT_EXTENSION = ".jpg";
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	
 	@Transactional
@@ -206,7 +214,7 @@ public class DiaryService {
 		if (todayCount >= DAILY_CREATE_LIMIT) {
 			return CanCreateResponse.builder()
 					.canCreate(false)
-					.reason("하루 생성 횟수 5회 초과")
+					.reason("하루 작성 횟수 5회 초과")
 					.build();
 		}
 		
@@ -239,11 +247,21 @@ public class DiaryService {
 		diaryRepository.delete(diary);
 	}
 
-	public List<DiaryResponse> getNearbyDiaries(UUID userId, LocalDate targetDate) {
-		LocalDate start = targetDate.minusDays(NEARBY_DATE_RANGE_DAYS);
-		LocalDate end = targetDate.plusDays(NEARBY_DATE_RANGE_DAYS);
-		
-		List<Diary> diaries = diaryRepository.findByUserIdAndEntryDateBetweenAndStatus(userId, start, end, DiaryStatus.ACTIVE);
-		return diaries.stream().map(DiaryResponse::from).toList();
+	/*
+	 * generate-sticker / regenerate-sticker 공용 트리거 (AI_ENDPOINT_CONFIRMATION_REPLY.md, 상훈 확인).
+	 * 재생성은 별도 엔드포인트 없이 같은 keyword로 이 메서드를 한 번 더 호출하는 것으로 처리한다.
+	 * DB 저장 없음 - 사용자가 최종 확인해야 POST /api/diaries로 저장된다.
+	 */
+	public GenerateStickerResponse generateSticker(UUID userId, String keyword) {
+		byte[] imageBytes = stickerWebhookClient.requestStickerImage(keyword);
+
+		String objectName = userId + "/" + UUID.randomUUID() + STICKER_OBJECT_EXTENSION;
+		try {
+			String imageUrl = supabaseStorageClient.uploadFromBytes(imageBytes, objectName);
+			return new GenerateStickerResponse(imageUrl);
+		} catch (RestClientException e) {
+			log.error("스티커 이미지 업로드 실패 (userId={})", userId, e);
+			throw new CustomException("스티커 업로드에 실패했습니다. 다시 시도해주세요.", 502);
+		}
 	}
 }
