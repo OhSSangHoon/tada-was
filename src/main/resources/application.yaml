@@ -108,3 +108,6 @@ supabase:
 n8n:
   # 키워드 -> 스티커 이미지(JPEG 바이트) 동기 생성 웹훅. 워크플로우가 Active 상태여야 동작.
   sticker-webhook-url: ${STICKER_WEBHOOK_URL}
+  # 본문 -> 제목/키워드/인물·장소·활동 추출 동기 웹훅. 프론트가 작성(generate-title) 흐름에서
+  # 쓰는 것과 같은 웹훅 URL - 일기 수정 시 본문 재추출 용도로 백엔드가 직접 호출한다.
+  diary-analysis-webhook-url: ${DIARY_ANALYSIS_WEBHOOK_URL}
