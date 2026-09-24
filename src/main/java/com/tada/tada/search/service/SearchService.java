@@ -24,6 +24,7 @@ import java.util.UUID;
     예외 처리:
     - query가 비어있으면 400 (임베딩 호출 자체를 막음 - 불필요한 외부 API 호출 방지)
     - 임베딩 생성(Voyage AI 호출) 실패 시 503 (외부 서비스 장애로 간주)
+      단, Voyage 429(rate limit)는 짧게 대기 후 1회 재시도 (embedWithRetry)
  */
 
 @Service
@@ -37,8 +38,11 @@ public class SearchService {
 	private final VoyageAIEmbeddingService voyageAIEmbeddingService;
 	
 	// 코사인 거리(embedding <-> embedding) 임계값 - 이보다 작아야 "관련 있는" 일기로 간주
-	// TODO: 실제 데이터/임베딩 모델 기준으로 튜닝 필요한 값. 지금은 임시값
-	private static final double SIMILARITY_THRESHOLD = 0.7;
+	private static final double SIMILARITY_THRESHOLD = 0.9;
+	
+	// Voyage AI 429(rate limit) 시 재시도 관련 설정
+	private static final int SEARCH_EMBED_MAX_RETRIES = 2;
+	private static final long SEARCH_EMBED_RETRY_WAIT_MS = 2000; // 2초
 	
 	/*
 	   자연어 검색으로 유사한 일기 페이지네이션과 함께 검색
@@ -64,13 +68,7 @@ public class SearchService {
 		}
 		
 		// 쿼리 텍스트를 벡터로 변환 (1024차원 float 배열)
-		float[] embedding;
-		try {
-			embedding = voyageAIEmbeddingService.embed(queryText);
-		} catch (Exception e) {
-			// Voyage AI 호출 실패(타임아웃 등) - 외부 서비스 장애
-			throw new CustomException("검색어 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", 503);
-		}
+		float[] embedding = embedWithRetry(queryText);
 		
 		// float[] 배열을 문자열로 변환 -> pgvector 쿼리 파라미터로 사용
 		String embeddingString = Arrays.toString(embedding);
@@ -83,6 +81,35 @@ public class SearchService {
 		};
 		
 		return diaryPage.map(this::toSearchResultResponse);
+	}
+	
+	/*
+	   검색어 임베딩 생성 - Voyage AI 429(rate limit) 발생 시 짧게 대기 후 1회 재시도
+	   429가 아닌 다른 예외는 재시도 없이 바로 실패 처리
+	 */
+	private float[] embedWithRetry(String queryText) {
+		for (int attempt = 1; attempt <= SEARCH_EMBED_MAX_RETRIES; attempt++) {
+			try {
+				return voyageAIEmbeddingService.embed(queryText);
+			} catch (CustomException e) {
+				boolean isRateLimit = e.getStatusCode() == 429;
+				boolean hasMoreAttempts = attempt < SEARCH_EMBED_MAX_RETRIES;
+				
+				if (isRateLimit && hasMoreAttempts) {
+					try {
+						Thread.sleep(SEARCH_EMBED_RETRY_WAIT_MS);
+					} catch (InterruptedException ie) {
+						Thread.currentThread().interrupt();
+						break;
+					}
+					continue;
+				}
+				break;
+			} catch (Exception e) {
+				break;
+			}
+		}
+		throw new CustomException("검색어 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", 503);
 	}
 	
 	private SearchResultResponse toSearchResultResponse(
