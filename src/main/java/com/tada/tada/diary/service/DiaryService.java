@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 
@@ -251,7 +252,12 @@ public class DiaryService {
 	 * generate-sticker / regenerate-sticker 공용 트리거 (AI_ENDPOINT_CONFIRMATION_REPLY.md, 상훈 확인).
 	 * 재생성은 별도 엔드포인트 없이 같은 keyword로 이 메서드를 한 번 더 호출하는 것으로 처리한다.
 	 * DB 저장 없음 - 사용자가 최종 확인해야 POST /api/diaries로 저장된다.
+	 *
+	 * DB 작업이 전혀 없는데 클래스 레벨 @Transactional(readOnly = true)를 상속받으면
+	 * n8n 웹훅 호출 + Supabase 업로드(외부 네트워크 I/O) 동안 커넥션 풀에서 커넥션을
+	 * 계속 점유하게 된다(상훈 PR #32 리뷰) - NOT_SUPPORTED로 트랜잭션 경계를 끊는다.
 	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public GenerateStickerResponse generateSticker(UUID userId, String keyword) {
 		byte[] imageBytes = stickerWebhookClient.requestStickerImage(keyword);
 
