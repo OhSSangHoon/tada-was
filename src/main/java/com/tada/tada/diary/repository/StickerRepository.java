@@ -19,6 +19,11 @@ public interface StickerRepository extends JpaRepository<Sticker, UUID> {
 
 	void deleteByDiaryId(UUID diaryId);
 
+	// 미참조 스티커 오브젝트 정리 배치(StickerCleanupService)가 "지금 DB에 저장된 스티커가
+	// 실제로 참조하는 파일이 뭔지" 판단하는 기준으로 쓴다.
+	@Query("SELECT s.imageUrl FROM Sticker s")
+	List<String> findAllImageUrls();
+
 	/*
 		사용자가 모은 스티커를 페이지네이션과 함께 조회 (코드리뷰 반영 - 페이지네이션 전환)
        
