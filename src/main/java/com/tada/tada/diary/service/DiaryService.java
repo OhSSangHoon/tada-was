@@ -12,13 +12,14 @@ import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
+import com.tada.tada.global.client.DiaryAnalysisClient;
 import com.tada.tada.global.client.StickerWebhookClient;
 import com.tada.tada.global.client.SupabaseStorageClient;
 import com.tada.tada.global.event.DiaryCreatedEvent;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
-import com.tada.tada.global.event.DiaryUpdatedEvent;
 import com.tada.tada.global.event.MentionExtractedEvent;
+import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,8 @@ public class DiaryService {
 	private final CuratorCleanupService curatorCleanupService;
 	private final StickerWebhookClient stickerWebhookClient;
 	private final SupabaseStorageClient supabaseStorageClient;
+	private final DiaryAnalysisClient diaryAnalysisClient;
+	private final DiaryContentUpdater diaryContentUpdater;
 	private final ApplicationEventPublisher eventPublisher;
 	private static final int DAILY_CREATE_LIMIT = 5;
 	private static final String STICKER_OBJECT_EXTENSION = ".jpg";
@@ -100,7 +103,13 @@ public class DiaryService {
 		return DiaryResponse.from(diary);
 	}
 	
-	@Transactional
+	/*
+	 * 본문이 바뀌면 n8n 재추출을 트랜잭션 밖에서 먼저 끝내고, 그 결과를 받은 뒤에만
+	 * DiaryContentUpdater의 짧은 트랜잭션을 열어 Diary 반영 + 이벤트 발행을 같이 처리한다
+	 * (한영, 2026-09-10 확정). 이 메서드 자체는 DB 쓰기가 없으니 클래스 레벨 readOnly
+	 * 트랜잭션을 상속받으면 n8n 호출 동안 커넥션을 점유하게 돼서 NOT_SUPPORTED로 뺀다.
+	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public DiaryResponse updateDiary(UUID userId, UUID diaryId, DiaryUpdateForm form) {
 		Diary diary = diaryRepository.findById(diaryId)
 				.orElseThrow(() -> new CustomException("일기를 찾을 수 없습니다.", 404));
@@ -113,25 +122,15 @@ public class DiaryService {
 			throw new CustomException("일기를 찾을 수 없습니다.", 404);
 		}
 
-		String oldContent = diary.getContent();
-		boolean contentChanged = !oldContent.equals(form.getContent());
+		boolean contentChanged = !diary.getContent().equals(form.getContent());
 
-		diary.update(form.getTitle(), form.getWeather(), form.getContent());
-
+		ExtractionResult extractionResult = null;
 		if (contentChanged) {
-			// extractionResult가 없으면 재추출을 하지 않고 기존 인물/장소/활동을 그대로 둔다.
-			// Curator는 새 추출 결과와 짝이 안 맞는 기존 데이터를 전부 삭제하므로, 빈 값을 넘기면 안 된다.
-			if (form.getExtractionResult() != null) {
-				eventPublisher.publishEvent(
-						new MentionExtractedEvent(diaryId, userId, form.getExtractionResult())
-				);
-			}
-			eventPublisher.publishEvent(
-					new DiaryUpdatedEvent(diaryId, userId, oldContent, form.getContent())
-			);
+			extractionResult = diaryAnalysisClient.analyze(form.getContent(), form.getWeather())
+					.toExtractionResult();
 		}
 
-		return DiaryResponse.from(diary);
+		return diaryContentUpdater.apply(userId, diaryId, form, extractionResult);
 	}
 	
 	@Transactional

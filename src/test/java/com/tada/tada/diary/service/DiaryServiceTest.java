@@ -11,12 +11,12 @@ import com.tada.tada.diary.entity.Sticker;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.diary.repository.StickerRepository;
 import com.tada.tada.curator.service.CuratorCleanupService;
+import com.tada.tada.global.client.DiaryAnalysisClient;
+import com.tada.tada.global.client.DiaryAnalysisResponse;
 import com.tada.tada.global.client.StickerWebhookClient;
 import com.tada.tada.global.client.SupabaseStorageClient;
 import com.tada.tada.global.event.DiaryRestoredEvent;
 import com.tada.tada.global.event.DiaryTrashedEvent;
-import com.tada.tada.global.event.DiaryUpdatedEvent;
-import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.exception.CustomException;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +49,8 @@ class DiaryServiceTest {
 	private CuratorCleanupService curatorCleanupService;
 	private StickerWebhookClient stickerWebhookClient;
 	private SupabaseStorageClient supabaseStorageClient;
+	private DiaryAnalysisClient diaryAnalysisClient;
+	private DiaryContentUpdater diaryContentUpdater;
 	private ApplicationEventPublisher eventPublisher;
 	private DiaryService diaryService;
 
@@ -69,6 +71,12 @@ class DiaryServiceTest {
 		supabaseStorageClient =
 				Mockito.mock(SupabaseStorageClient.class);
 
+		diaryAnalysisClient =
+				Mockito.mock(DiaryAnalysisClient.class);
+
+		diaryContentUpdater =
+				Mockito.mock(DiaryContentUpdater.class);
+
 		eventPublisher =
 				Mockito.mock(ApplicationEventPublisher.class);
 
@@ -79,6 +87,8 @@ class DiaryServiceTest {
 						curatorCleanupService,
 						stickerWebhookClient,
 						supabaseStorageClient,
+						diaryAnalysisClient,
+						diaryContentUpdater,
 						eventPublisher
 				);
 	}
@@ -143,7 +153,7 @@ class DiaryServiceTest {
 	}
 
 	@Test
-	void 제목이나_날씨만_바뀌면_이벤트를_발행하지_않는다() {
+	void 제목이나_날씨만_바뀌면_n8n_호출없이_반영을_위임한다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
 		Diary diary = Mockito.mock(Diary.class);
@@ -160,54 +170,34 @@ class DiaryServiceTest {
 
 		diaryService.updateDiary(userId, diaryId, form);
 
-		verify(diary).update("새 제목", "SUNNY", "기존 본문");
-		verify(eventPublisher, never()).publishEvent(any());
+		verify(diaryAnalysisClient, never()).analyze(any(), any());
+		verify(diaryContentUpdater).apply(userId, diaryId, form, null);
 	}
 
 	@Test
-	void 본문이_바뀌어도_extractionResult가_없으면_기존_추출결과를_유지하고_DiaryUpdatedEvent만_발행한다() {
-		UUID userId = UUID.randomUUID();
-		UUID diaryId = UUID.randomUUID();
-		Diary diary = Mockito.mock(Diary.class);
-		DiaryUpdateForm form = new DiaryUpdateForm();
-		form.setTitle("제목");
-		form.setContent("새로운 본문");
-
-		when(diaryRepository.findById(diaryId))
-				.thenReturn(Optional.of(diary));
-		when(diary.getUserId()).thenReturn(userId);
-		when(diary.isActive()).thenReturn(true);
-		when(diary.getContent()).thenReturn("기존 본문");
-
-		diaryService.updateDiary(userId, diaryId, form);
-
-		verify(diary).update("제목", null, "새로운 본문");
-		verify(eventPublisher, never()).publishEvent(Mockito.any(MentionExtractedEvent.class));
-		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
-	}
-
-	@Test
-	void 본문이_바뀌면_MentionExtractedEvent와_DiaryUpdatedEvent를_둘다_발행한다() {
+	void 본문이_바뀌면_n8n으로_재추출한_결과를_반영에_넘긴다() {
 		UUID userId = UUID.randomUUID();
 		UUID diaryId = UUID.randomUUID();
 		Diary diary = Mockito.mock(Diary.class);
 		ExtractionResult extractionResult = new ExtractionResult(List.of(), List.of(), List.of());
+		DiaryAnalysisResponse analysisResponse = Mockito.mock(DiaryAnalysisResponse.class);
 		DiaryUpdateForm form = new DiaryUpdateForm();
 		form.setTitle("제목");
+		form.setWeather("맑음");
 		form.setContent("새로운 본문");
-		form.setExtractionResult(extractionResult);
 
 		when(diaryRepository.findById(diaryId))
 				.thenReturn(Optional.of(diary));
 		when(diary.getUserId()).thenReturn(userId);
 		when(diary.isActive()).thenReturn(true);
 		when(diary.getContent()).thenReturn("기존 본문");
+		when(diaryAnalysisClient.analyze("새로운 본문", "맑음")).thenReturn(analysisResponse);
+		when(analysisResponse.toExtractionResult()).thenReturn(extractionResult);
 
 		diaryService.updateDiary(userId, diaryId, form);
 
-		verify(diary).update("제목", null, "새로운 본문");
-		verify(eventPublisher).publishEvent(new MentionExtractedEvent(diaryId, userId, extractionResult));
-		verify(eventPublisher).publishEvent(new DiaryUpdatedEvent(diaryId, userId, "기존 본문", "새로운 본문"));
+		verify(diaryAnalysisClient).analyze("새로운 본문", "맑음");
+		verify(diaryContentUpdater).apply(userId, diaryId, form, extractionResult);
 	}
 
 	// ----- restoreDiary -----
