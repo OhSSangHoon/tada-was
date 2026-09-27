@@ -60,6 +60,55 @@ class StickerObjectCleanupClientTest {
 	}
 
 	@Test
+	void 한_페이지가_꽉_차면_offset을_밀어서_다음_페이지까지_모두_읽는다() {
+		mockServer.expect(requestTo(STORAGE_URL + "/object/list/" + BUCKET))
+				.andExpect(content().json("{\"prefix\":\"\",\"offset\":0}"))
+				.andRespond(withSuccess("[{\"name\": \"user-1\", \"id\": null, \"created_at\": null}]",
+						MediaType.APPLICATION_JSON));
+
+		StringBuilder fullPage = new StringBuilder("[");
+		for (int i = 0; i < 1000; i++) {
+			if (i > 0) {
+				fullPage.append(",");
+			}
+			fullPage.append("{\"name\": \"f").append(i).append(".jpg\", \"id\": \"id").append(i)
+					.append("\", \"created_at\": \"2026-09-20T00:00:00Z\"}");
+		}
+		fullPage.append("]");
+
+		mockServer.expect(requestTo(STORAGE_URL + "/object/list/" + BUCKET))
+				.andExpect(content().json("{\"prefix\":\"user-1/\",\"offset\":0}"))
+				.andRespond(withSuccess(fullPage.toString(), MediaType.APPLICATION_JSON));
+		mockServer.expect(requestTo(STORAGE_URL + "/object/list/" + BUCKET))
+				.andExpect(content().json("{\"prefix\":\"user-1/\",\"offset\":1000}"))
+				.andRespond(withSuccess("[{\"name\": \"last.jpg\", \"id\": \"idlast\", \"created_at\": \"2026-09-20T00:00:00Z\"}]",
+						MediaType.APPLICATION_JSON));
+
+		List<StickerObjectCleanupClient.StorageObject> objects = client.listAllObjects();
+
+		assertEquals(1001, objects.size());
+		assertEquals("user-1/last.jpg", objects.get(1000).path());
+		mockServer.verify();
+	}
+
+	@Test
+	void 삭제할_경로가_많으면_100개씩_나눠서_요청한다() {
+		List<String> paths = new java.util.ArrayList<>();
+		for (int i = 0; i < 250; i++) {
+			paths.add("user-1/" + i + ".jpg");
+		}
+
+		mockServer.expect(org.springframework.test.web.client.ExpectedCount.times(3),
+						requestTo(STORAGE_URL + "/object/" + BUCKET))
+				.andExpect(method(HttpMethod.DELETE))
+				.andRespond(withSuccess());
+
+		client.deleteObjects(paths);
+
+		mockServer.verify();
+	}
+
+	@Test
 	void 오브젝트_경로_목록으로_삭제_요청을_보낸다() {
 		mockServer.expect(requestTo(STORAGE_URL + "/object/" + BUCKET))
 				.andExpect(method(HttpMethod.DELETE))

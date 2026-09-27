@@ -40,7 +40,8 @@ public class StickerCleanupService {
 		Instant cutoff = Instant.now().minus(GRACE_PERIOD);
 
 		List<String> orphanedPaths = stickerObjectCleanupClient.listAllObjects().stream()
-				.filter(object -> object.createdAt().isBefore(cutoff))
+				// 생성시각을 못 받은 오브젝트는 유예시간 판단이 불가능하니 지우지 않고 건너뛴다
+				.filter(object -> object.createdAt() != null && object.createdAt().isBefore(cutoff))
 				.map(StorageObject::path)
 				.filter(path -> !referencedPaths.contains(path))
 				.toList();

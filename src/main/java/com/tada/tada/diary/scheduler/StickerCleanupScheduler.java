@@ -16,9 +16,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class StickerCleanupScheduler {
 
+	// 서버 JVM zone(Railway는 보통 UTC)과 무관하게 항상 KST 새벽 4시 30분에 돌게 한다
+	private static final String SCHEDULER_ZONE = "Asia/Seoul";
+
 	private final StickerCleanupService stickerCleanupService;
 
-	@Scheduled(cron = "0 30 4 * * *")
+	@Scheduled(cron = "0 30 4 * * *", zone = SCHEDULER_ZONE)
 	public void purgeOrphanedStickerObjects() {
 		try {
 			stickerCleanupService.cleanupOrphanedObjects();

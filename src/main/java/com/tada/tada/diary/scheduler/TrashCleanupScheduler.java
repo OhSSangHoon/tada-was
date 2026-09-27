@@ -28,11 +28,13 @@ import java.util.List;
 public class TrashCleanupScheduler {
 
 	private static final int TRASH_RETENTION_DAYS = 30;
+	// 서버 JVM zone(Railway는 보통 UTC)과 무관하게 항상 KST 새벽 4시에 돌게 한다
+	private static final String SCHEDULER_ZONE = "Asia/Seoul";
 
 	private final DiaryRepository diaryRepository;
 	private final DiaryService diaryService;
 
-	@Scheduled(cron = "0 0 4 * * *")
+	@Scheduled(cron = "0 0 4 * * *", zone = SCHEDULER_ZONE)
 	public void purgeExpiredTrash() {
 		LocalDateTime cutoff = LocalDateTime.now().minusDays(TRASH_RETENTION_DAYS);
 		List<Diary> expired = diaryRepository.findByStatusAndDeletedAtBefore(DiaryStatus.TRASHED, cutoff);
