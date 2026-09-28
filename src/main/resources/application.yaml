@@ -85,6 +85,7 @@ spring:
 
 server:
   port: ${PORT:8080}
+  forward-headers-strategy: framework
 
 jwt:
   # JWT 비밀키
