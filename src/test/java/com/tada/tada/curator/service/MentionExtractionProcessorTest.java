@@ -8,11 +8,14 @@ import com.tada.tada.curator.repository.MemoryPersonRepository;
 import com.tada.tada.curator.repository.MentionCandidateRepository;
 import com.tada.tada.curator.repository.PersonAliasRepository;
 import com.tada.tada.curator.validation.ExtractionResultValidator;
+import com.tada.tada.curator.validation.PersonExtractionFilter;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.global.event.MentionExtractedEvent;
 import com.tada.tada.global.event.dto.ExtractionResult;
 import com.tada.tada.global.event.dto.PersonExtraction;
+import com.tada.tada.global.event.dto.ActivityExtraction;
+import com.tada.tada.global.event.dto.PlaceExtraction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -41,11 +44,17 @@ class MentionExtractionProcessorTest {
 	private MentionCandidatePersonRefService relationService;
 	private DiaryPersonService diaryPersonService;
 	private PersonAggregateService personAggregateService;
+	private PersonExtractionFilter personExtractionFilter;
 
 	private MentionExtractionProcessor processor;
 
 	@BeforeEach
 	void setUp() {
+		personExtractionFilter =
+				Mockito.mock(
+						PersonExtractionFilter.class
+				);
+
 		diaryRepository =
 				Mockito.mock(DiaryRepository.class);
 
@@ -70,12 +79,21 @@ class MentionExtractionProcessorTest {
 				new MentionExtractionProcessor(
 						diaryRepository,
 						extractionResultValidator,
+						personExtractionFilter,
 						mentionCandidateService,
 						relationService,
 						diaryPersonService,
 						personAggregateService,
 						new PersonNormalizer()
 				);
+
+		when(
+				personExtractionFilter.findExcludedRefs(
+						Mockito.anyList()
+				)
+		).thenReturn(
+				Set.of()
+		);
 	}
 
 	@Test
@@ -348,13 +366,13 @@ class MentionExtractionProcessorTest {
 				new MentionExtractionProcessor(
 						diaryRepository,
 						extractionResultValidator,
+						personExtractionFilter,
 						realCandidateService,
 						relationService,
 						diaryPersonService,
 						personAggregateService,
 						normalizer
 				);
-
 		when(
 				person.getId()
 		).thenReturn(
@@ -882,6 +900,208 @@ class MentionExtractionProcessorTest {
 				relationService,
 				diaryPersonService,
 				personAggregateService
+		);
+	}
+
+	@Test
+	void 비인물_PERSON은_제외하고_유효한_PERSON과의_관계만_유지한다() {
+		UUID diaryId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UUID motherPersonId = UUID.randomUUID();
+
+		Diary diary =
+				Diary.builder()
+						.userId(userId)
+						.entryDate(LocalDate.now())
+						.title("오늘")
+						.content("가족들과 엄마와 식당에서 외식했다")
+						.build();
+
+		MentionCandidate motherCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"엄마",
+						"엄마",
+						MentionEntityType.PERSON,
+						MentionCandidateStatus.CONFIRMED,
+						motherPersonId
+				);
+
+		MentionCandidate placeCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"식당",
+						"식당",
+						MentionEntityType.PLACE,
+						MentionCandidateStatus.CONFIRMED,
+						null
+				);
+
+		MentionCandidate activityCandidate =
+				MentionCandidate.create(
+						diaryId,
+						"외식",
+						"외식",
+						MentionEntityType.ACTIVITY,
+						MentionCandidateStatus.CONFIRMED,
+						null
+				);
+
+		ExtractionResult extractionResult =
+				new ExtractionResult(
+						List.of(
+								new PersonExtraction(
+										"p1",
+										"가족들과",
+										"PERSON"
+								),
+								new PersonExtraction(
+										"p2",
+										"엄마",
+										"PERSON"
+								)
+						),
+						List.of(
+								new PlaceExtraction(
+										"식당",
+										"식당",
+										"PLACE",
+										List.of("p1", "p2")
+								)
+						),
+						List.of(
+								new ActivityExtraction(
+										"외식",
+										"외식",
+										"ACTIVITY",
+										List.of("p1", "p2")
+								)
+						)
+				);
+
+		when(
+				diaryRepository.findByIdForUpdate(
+						diaryId
+				)
+		).thenReturn(
+				Optional.of(diary)
+		);
+
+		when(
+				personExtractionFilter.findExcludedRefs(
+						extractionResult.persons()
+				)
+		).thenReturn(
+				Set.of("p1")
+		);
+
+		when(
+				mentionCandidateService.findAllByDiaryId(
+						diaryId
+				)
+		).thenReturn(
+				List.of()
+		);
+
+		when(
+				mentionCandidateService.createPersonCandidate(
+						diaryId,
+						userId,
+						"엄마",
+						Set.of()
+				)
+		).thenReturn(
+				motherCandidate
+		);
+
+		when(
+				mentionCandidateService.createNonPersonCandidate(
+						diaryId,
+						"식당",
+						"식당",
+						MentionEntityType.PLACE
+				)
+		).thenReturn(
+				placeCandidate
+		);
+
+		when(
+				mentionCandidateService.createNonPersonCandidate(
+						diaryId,
+						"외식",
+						"외식",
+						MentionEntityType.ACTIVITY
+				)
+		).thenReturn(
+				activityCandidate
+		);
+
+		when(
+				diaryPersonService.reconcileDiaryPersons(
+						eq(diaryId),
+						eq(userId),
+						Mockito.anyList()
+				)
+		).thenReturn(
+				Set.of(motherPersonId)
+		);
+
+		processor.process(
+				new MentionExtractedEvent(
+						diaryId,
+						userId,
+						extractionResult
+				)
+		);
+
+		verify(
+				mentionCandidateService,
+				never()
+		).createPersonCandidate(
+				eq(diaryId),
+				eq(userId),
+				eq("가족들과"),
+				Mockito.anySet()
+		);
+
+		verify(
+				mentionCandidateService
+		).createPersonCandidate(
+				diaryId,
+				userId,
+				"엄마",
+				Set.of()
+		);
+
+		verify(
+				relationService
+		).reconcileRelations(
+				diaryId,
+				placeCandidate,
+				List.of(motherCandidate)
+		);
+
+		verify(
+				relationService
+		).reconcileRelations(
+				diaryId,
+				activityCandidate,
+				List.of(motherCandidate)
+		);
+
+		verify(
+				diaryPersonService
+		).reconcileDiaryPersons(
+				diaryId,
+				userId,
+				List.of(motherCandidate)
+		);
+
+		verify(
+				personAggregateService
+		).recalculate(
+				userId,
+				Set.of(motherPersonId)
 		);
 	}
 }
