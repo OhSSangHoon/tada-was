@@ -38,13 +38,13 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                FROM diaries d
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                 AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
                ORDER BY d.entry_date DESC, d.id ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
                   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                    AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateDesc(
@@ -71,13 +71,13 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                FROM diaries d
                LEFT JOIN stickers s ON s.diary_id = d.id
                WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                 AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                 AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
                ORDER BY d.entry_date ASC, d.id ASC
             """,
 			countQuery = """
                   SELECT COUNT(d.id) FROM diaries d
                   WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
-                    AND (d.embedding <-> CAST(:embedding AS vector)) < :threshold
+                    AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateAsc(
