@@ -1,7 +1,6 @@
 package com.tada.tada.global.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -26,11 +25,11 @@ import java.util.List;
  * "userId/uuid.jpg"로 딱 한 단계 깊이라 2단계 조회면 충분하다.
  * (list 응답에서 폴더 항목은 id가 null, 파일 항목은 id가 있음 - Supabase Storage list API 규약)
  */
-@Slf4j
 @Component
 public class StickerObjectCleanupClient {
 
 	private static final int LIST_PAGE_SIZE = 1000;
+	private static final int DELETE_CHUNK_SIZE = 100;
 
 	private final RestClient restClient;
 	private final String storageUrl;
@@ -73,30 +72,45 @@ public class StickerObjectCleanupClient {
 	 * 상대 경로("userId/파일명") 목록을 받아 한 번에 삭제한다.
 	 */
 	public void deleteObjects(List<String> objectPaths) {
-		if (objectPaths.isEmpty()) {
-			return;
+		// 한 요청에 너무 많은 경로를 실으면 요청 크기/처리 시간 제한에 걸릴 수 있어 나눠서 보낸다
+		for (int from = 0; from < objectPaths.size(); from += DELETE_CHUNK_SIZE) {
+			int to = Math.min(from + DELETE_CHUNK_SIZE, objectPaths.size());
+			restClient.method(HttpMethod.DELETE)
+					.uri(storageUrl + "/object/" + bucket)
+					.header("Authorization", "Bearer " + serviceRoleKey)
+					.header("apikey", serviceRoleKey)
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(new DeleteRequest(objectPaths.subList(from, to)))
+					.retrieve()
+					.toBodilessEntity();
 		}
-		restClient.method(HttpMethod.DELETE)
-				.uri(storageUrl + "/object/" + bucket)
-				.header("Authorization", "Bearer " + serviceRoleKey)
-				.header("apikey", serviceRoleKey)
-				.contentType(MediaType.APPLICATION_JSON)
-				.body(new DeleteRequest(objectPaths))
-				.retrieve()
-				.toBodilessEntity();
 	}
 
+	// list API는 한 번에 최대 LIST_PAGE_SIZE개만 주므로, 꽉 찬 페이지가 오는 동안 offset을 밀며 끝까지 읽는다.
+	// 페이지 사이에 순서가 흔들리지 않게 이름순으로 고정한다.
 	private List<RawItem> list(String prefix) {
-		RawItem[] items = restClient.post()
-				.uri(storageUrl + "/object/list/" + bucket)
-				.header("Authorization", "Bearer " + serviceRoleKey)
-				.header("apikey", serviceRoleKey)
-				.contentType(MediaType.APPLICATION_JSON)
-				.body(new ListRequest(prefix, LIST_PAGE_SIZE, 0))
-				.retrieve()
-				.body(RawItem[].class);
+		List<RawItem> all = new ArrayList<>();
+		int offset = 0;
+		while (true) {
+			RawItem[] page = restClient.post()
+					.uri(storageUrl + "/object/list/" + bucket)
+					.header("Authorization", "Bearer " + serviceRoleKey)
+					.header("apikey", serviceRoleKey)
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(new ListRequest(prefix, LIST_PAGE_SIZE, offset, new SortBy("name", "asc")))
+					.retrieve()
+					.body(RawItem[].class);
 
-		return items == null ? List.of() : Arrays.asList(items);
+			if (page == null) {
+				break;
+			}
+			all.addAll(Arrays.asList(page));
+			if (page.length < LIST_PAGE_SIZE) {
+				break;
+			}
+			offset += LIST_PAGE_SIZE;
+		}
+		return all;
 	}
 
 	private static String trimTrailingSlash(String url) {
@@ -106,7 +120,10 @@ public class StickerObjectCleanupClient {
 	public record StorageObject(String path, Instant createdAt) {
 	}
 
-	private record ListRequest(String prefix, int limit, int offset) {
+	private record SortBy(String column, String order) {
+	}
+
+	private record ListRequest(String prefix, int limit, int offset, SortBy sortBy) {
 	}
 
 	private record DeleteRequest(List<String> prefixes) {

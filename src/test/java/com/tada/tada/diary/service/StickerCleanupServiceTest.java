@@ -66,6 +66,17 @@ class StickerCleanupServiceTest {
 	}
 
 	@Test
+	void 생성시각을_모르는_오브젝트는_지우지_않고_건너뛴다() {
+		when(stickerRepository.findAllImageUrls()).thenReturn(List.of());
+		when(stickerObjectCleanupClient.listAllObjects())
+				.thenReturn(List.of(new StorageObject("user-1/unknown.jpg", null)));
+
+		stickerCleanupService.cleanupOrphanedObjects();
+
+		verify(stickerObjectCleanupClient, never()).deleteObjects(Mockito.any());
+	}
+
+	@Test
 	void 삭제_대상이_없으면_삭제_호출_자체를_안한다() {
 		when(stickerRepository.findAllImageUrls()).thenReturn(List.of());
 		when(stickerObjectCleanupClient.listAllObjects()).thenReturn(List.of());
