@@ -5,6 +5,7 @@ import com.tada.tada.curator.entity.MentionCandidateStatus;
 import com.tada.tada.curator.entity.MentionEntityType;
 import com.tada.tada.curator.model.PersonNormalization;
 import com.tada.tada.curator.validation.ExtractionResultValidator;
+import com.tada.tada.curator.validation.PersonExtractionFilter;
 import com.tada.tada.diary.entity.Diary;
 import com.tada.tada.diary.repository.DiaryRepository;
 import com.tada.tada.global.event.MentionExtractedEvent;
@@ -33,6 +34,7 @@ public class MentionExtractionProcessor {
 
 	private final DiaryRepository diaryRepository;
 	private final ExtractionResultValidator extractionResultValidator;
+	private final PersonExtractionFilter personExtractionFilter;
 	private final MentionCandidateService mentionCandidateService;
 	private final MentionCandidatePersonRefService relationService;
 	private final DiaryPersonService diaryPersonService;
@@ -60,6 +62,11 @@ public class MentionExtractionProcessor {
 				diary.getContent(),
 				extractionResult
 		);
+
+		Set<String> excludedPersonRefs =
+				personExtractionFilter.findExcludedRefs(
+						extractionResult.persons()
+				);
 
 		/*
 		 * 신규 저장과 본문 수정을 같은 경로에서 처리한다.
@@ -103,7 +110,8 @@ public class MentionExtractionProcessor {
 						event.diaryId(),
 						event.userId(),
 						extractionResult.persons(),
-						existingPersonCandidates
+						existingPersonCandidates,
+						excludedPersonRefs
 				);
 
 		List<MentionCandidate> currentPersonCandidates =
@@ -115,14 +123,16 @@ public class MentionExtractionProcessor {
 				event.diaryId(),
 				extractionResult.places(),
 				personCandidatesByRef,
-				existingSourceCandidates
+				existingSourceCandidates,
+				excludedPersonRefs
 		);
 
 		reconcileActivityCandidates(
 				event.diaryId(),
 				extractionResult.activities(),
 				personCandidatesByRef,
-				existingSourceCandidates
+				existingSourceCandidates,
+				excludedPersonRefs
 		);
 
 		/*
@@ -178,7 +188,8 @@ public class MentionExtractionProcessor {
 			UUID userId,
 			List<PersonExtraction> persons,
 			Map<String, List<MentionCandidate>>
-					existingCandidatePool
+					existingCandidatePool,
+			Set<String> excludedPersonRefs
 	) {
 		Map<String, MentionCandidate>
 				candidatesByRef =
@@ -192,6 +203,12 @@ public class MentionExtractionProcessor {
 				new HashMap<>();
 
 		for (PersonExtraction person : persons) {
+
+			if (excludedPersonRefs.contains(
+					person.ref()
+			)) {
+				continue;
+			}
 
 			PersonNormalization normalization =
 					personNormalizer.normalize(
@@ -355,7 +372,8 @@ public class MentionExtractionProcessor {
 			Map<String, MentionCandidate>
 					personCandidatesByRef,
 			Map<String, List<MentionCandidate>>
-					existingCandidatePool
+					existingCandidatePool,
+			Set<String> excludedPersonRefs
 	) {
 		for (PlaceExtraction place : places) {
 
@@ -404,7 +422,8 @@ public class MentionExtractionProcessor {
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							place.personRefs(),
-							personCandidatesByRef
+							personCandidatesByRef,
+							excludedPersonRefs
 					);
 
 			/*
@@ -425,7 +444,8 @@ public class MentionExtractionProcessor {
 			Map<String, MentionCandidate>
 					personCandidatesByRef,
 			Map<String, List<MentionCandidate>>
-					existingCandidatePool
+					existingCandidatePool,
+			Set<String> excludedPersonRefs
 	) {
 		for (ActivityExtraction activity
 				: activities) {
@@ -475,7 +495,8 @@ public class MentionExtractionProcessor {
 			List<MentionCandidate> relatedPersons =
 					resolvePersonCandidates(
 							activity.personRefs(),
-							personCandidatesByRef
+							personCandidatesByRef,
+							excludedPersonRefs
 					);
 
 			relationService.reconcileRelations(
@@ -689,12 +710,19 @@ public class MentionExtractionProcessor {
 	resolvePersonCandidates(
 			List<String> personRefs,
 			Map<String, MentionCandidate>
-					personCandidatesByRef
+					personCandidatesByRef,
+			Set<String> excludedPersonRefs
 	) {
 		List<MentionCandidate> persons =
 				new ArrayList<>();
 
 		for (String personRef : personRefs) {
+
+			if (excludedPersonRefs.contains(
+					personRef
+			)) {
+				continue;
+			}
 
 			MentionCandidate candidate =
 					personCandidatesByRef.get(

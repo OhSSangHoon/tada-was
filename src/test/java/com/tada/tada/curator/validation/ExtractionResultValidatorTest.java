@@ -179,22 +179,18 @@ class ExtractionResultValidatorTest {
 						)
 		);
 	}
-
+	
 	@Test
-	void 대명사와_불특정_지칭은_인물로_저장하지_않는다() {
-		/*
-		 * 명세 8.2-6: 빈 문자열, 대명사, 일반 명사만 남으면
-		 * 정상 PERSON 으로 저장하지 않고 Extraction 검증 실패로 처리한다.
-		 */
+	void 대명사와_불특정_지칭도_구조가_정상이면_검증을_통과한다() {
 		for (String rawText : java.util.List.of(
 				"그", "그녀", "걔", "쟤", "얘",
 				"우리", "저희", "누구", "아무",
 				"사람들", "다들", "모두", "애들", "친구들",
-				"그는", "걔가", "사람들이", "모두가", "여러 명", "몇 명",
-				"세 명", "세명", "3명", "두 사람"
+				"그는", "걔가", "사람들이", "모두가",
+				"여러 명", "몇 명", "세 명", "세명",
+				"3명", "두 사람"
 		)) {
-			assertThrows(
-					ExtractionValidationException.class,
+			assertDoesNotThrow(
 					() -> validate(rawText),
 					rawText
 			);
