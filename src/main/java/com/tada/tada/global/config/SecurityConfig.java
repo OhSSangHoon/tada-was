@@ -61,6 +61,19 @@ public class SecurityConfig {
 				// CORS 설정 적용 (아래 corsConfigurationSource() 참고)
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
+				// 인증 정보가 없거나 Access Token이 만료/무효일 때 /login 리다이렉트(302) 대신 401을 준다.
+				// 프론트(api-client.ts)가 401을 보고 Refresh Token으로 재발급하기 때문에 반드시 401이어야 한다.
+				.exceptionHandling(exception -> exception
+						.authenticationEntryPoint((request, response, authException) -> {
+							response.setStatus(401);
+							response.setContentType("application/json");
+							response.setCharacterEncoding("UTF-8");
+							response.getWriter().write(
+									"{\"success\":false,\"data\":null,\"message\":\"인증이 필요합니다.\"}"
+							);
+						})
+				)
+
 				.authorizeHttpRequests(auth -> auth
 						// 헬스체크용 루트 경로 — 서버 떠있는지 확인용
 						.requestMatchers("/").permitAll()
@@ -128,7 +141,9 @@ public class SecurityConfig {
 		));
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
-		configuration.setAllowCredentials(true);  // 쿠키(Refresh Token) 주고받으려면 필수
+		// 인증 정보를 담은 크로스 오리진 요청 허용용.
+		// Refresh Token은 쿠키가 아니라 /api/auth/reissue 요청 바디로 전달한다 (프론트 sessionStorage 방식).
+		configuration.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);

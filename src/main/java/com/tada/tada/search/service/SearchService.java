@@ -62,7 +62,8 @@ public class SearchService {
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param queryText 사용자가 입력한 자연어 검색어
 	   @param pageable 페이지 정보
-	   @return 유사도순으로 정렬된 본인 일기 Page 객체
+	   @param sort 정렬 기준 (LATEST/OLDEST: 작성일순, RELEVANCE: 유사도순)
+	   @return sort 기준으로 정렬된 본인 일기 Page 객체
 	 */
 	public Page<SearchResultResponse> search(UUID userId, String queryText, Pageable pageable, SearchSortOption sort) {
 		
@@ -84,6 +85,8 @@ public class SearchService {
 			case LATEST -> searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
 			case OLDEST -> searchRepository.findSimilarDiariesOrderByEntryDateAsc(
+					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
+			case RELEVANCE -> searchRepository.findSimilarDiariesOrderByRelevance(
 					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
 		};
 		

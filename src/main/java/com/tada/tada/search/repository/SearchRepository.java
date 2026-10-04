@@ -23,9 +23,7 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	/*
 	   임베딩 기반 검색 결과를 최신순(entry_date DESC)으로 정렬해서 페이지네이션과 함께 조회
 	   - threshold: 코사인 거리 기준값보다 작은(=쿼리와 관련 있는) 일기만 후보로 걸러낸 뒤 날짜순 정렬
-	   - "관련도순" 정렬은 별도로 제공하지 않음: 검색 결과는 이미 threshold로 관련 있는 일기만
-	     걸러진 상태이고, 그 안에서 사용자가 고르는 건 날짜 순서뿐이라 관련도는 필터링 기준이지
-	     정렬 기준이 아니라고 판단
+	   - 유사도순 정렬은 findSimilarDiariesOrderByRelevance 참고
 
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
@@ -83,6 +81,40 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
                   """,
 			nativeQuery = true)
 	Page<SearchResultProjection> findSimilarDiariesOrderByEntryDateAsc(
+			@Param("userId") UUID userId,
+			@Param("embedding") String embedding,
+			@Param("threshold") double threshold,
+			Pageable pageable
+	);
+	
+	/*
+	   임베딩 기반 검색 결과를 유사도순(코사인 거리 오름차순)으로 정렬해서 페이지네이션과 함께 조회
+	   - threshold: 코사인 거리 기준값보다 작은 일기만 후보로 걸러낸 뒤 쿼리와 가까운 순으로 정렬
+	   - 거리가 같으면 id로 정렬해 페이지 간 순서를 고정
+
+	   @param userId 검색을 요청한 로그인 사용자 ID
+	   @param embedding 검색할 쿼리 벡터 - 1024차원 Voyage AI 임베딩
+	   @param threshold 유사도(코사인 거리) 임계값
+	   @param pageable 페이지 정보
+	   @return 유사도순으로 정렬된 일기 Page 객체
+	 */
+	@Query(value = """
+               SELECT d.id AS id, d.entry_date AS entryDate, d.title AS title,
+                     d.weather AS weather, d.content AS content, d.created_at AS createdAt,
+                     s.image_url AS stickerImageUrl
+               FROM diaries d
+               LEFT JOIN stickers s ON s.diary_id = d.id
+               WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                 AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
+               ORDER BY (d.embedding <=> CAST(:embedding AS vector)) ASC, d.id ASC
+            """,
+			countQuery = """
+                  SELECT COUNT(d.id) FROM diaries d
+                  WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+                    AND (d.embedding <=> CAST(:embedding AS vector)) < :threshold
+                  """,
+			nativeQuery = true)
+	Page<SearchResultProjection> findSimilarDiariesOrderByRelevance(
 			@Param("userId") UUID userId,
 			@Param("embedding") String embedding,
 			@Param("threshold") double threshold,
