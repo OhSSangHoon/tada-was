@@ -16,7 +16,7 @@
 
 | 구분 | 기술 |
 |---|---|
-| Language / Framework | Java 17, Spring Boot 4.1 |
+| Language / Framework | Java 17, Spring Boot 3.5.16 |
 | Data | Spring Data JPA, PostgreSQL (Supabase), pgvector |
 | Auth | Spring Security, OAuth2 Client, JWT (jjwt) |
 | Storage | Supabase Storage |
