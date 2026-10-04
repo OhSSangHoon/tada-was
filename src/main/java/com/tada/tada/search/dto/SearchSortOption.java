@@ -13,7 +13,8 @@ import org.springframework.data.domain.Sort;
 public enum SearchSortOption {
 	
 	LATEST(Sort.Direction.DESC),
-	OLDEST(Sort.Direction.ASC);
+	OLDEST(Sort.Direction.ASC),
+	RELEVANCE(Sort.Direction.ASC);   // 코사인 거리 오름차순(가까운 일기가 먼저)
 	
 	private final Sort.Direction direction;
 	
@@ -29,7 +30,7 @@ public enum SearchSortOption {
 		try {
 			return SearchSortOption.valueOf(value.toUpperCase());
 		} catch (IllegalArgumentException e) {
-			throw new CustomException("Sort는 latest 또는 oldest만 가능합니다", 400);
+			throw new CustomException("Sort는 latest, oldest, relevance만 가능합니다", 400);
 		}
 	}
 }
