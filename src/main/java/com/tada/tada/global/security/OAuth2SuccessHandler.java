@@ -1,6 +1,6 @@
 package com.tada.tada.global.security;
 
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tada.tada.auth.dto.AuthResponse;
 import com.tada.tada.auth.service.CustomOAuth2User;
 import com.tada.tada.auth.service.RefreshTokenService;
