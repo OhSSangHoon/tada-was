@@ -1,16 +1,19 @@
 package com.tada.tada.search.service;
 
 import com.tada.tada.global.exception.CustomException;
+import com.tada.tada.search.dto.DiaryDistanceDebugProjection;
 import com.tada.tada.search.dto.SearchResultProjection;
 import com.tada.tada.search.dto.SearchResultResponse;
 import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.repository.SearchRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 /*
@@ -27,6 +30,7 @@ import java.util.UUID;
       단, Voyage 429(rate limit)는 짧게 대기 후 1회 재시도 (embedWithRetry)
  */
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
@@ -38,7 +42,7 @@ public class SearchService {
 	private final VoyageAIEmbeddingService voyageAIEmbeddingService;
 	
 	// 코사인 거리(embedding <-> embedding) 임계값 - 이보다 작아야 "관련 있는" 일기로 간주
-	private static final double SIMILARITY_THRESHOLD = 0.9;
+	private static final double SIMILARITY_THRESHOLD = 0.7;
 	
 	// Voyage AI 429(rate limit) 시 재시도 관련 설정
 	private static final int SEARCH_EMBED_MAX_RETRIES = 2;
@@ -72,6 +76,9 @@ public class SearchService {
 		
 		// float[] 배열을 문자열로 변환 -> pgvector 쿼리 파라미터로 사용
 		String embeddingString = Arrays.toString(embedding);
+		
+		// 임시
+		logDebugDistance(userId, queryText, embeddingString);
 		
 		Page<SearchResultProjection> diaryPage = switch (sort) {
 			case LATEST -> searchRepository.findSimilarDiariesOrderByEntryDateDesc(
@@ -111,7 +118,19 @@ public class SearchService {
 		}
 		throw new CustomException("검색어 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", 503);
 	}
-	
+	private void logDebugDistance(UUID userId, String queryText, String embeddingString) {
+		List<DiaryDistanceDebugProjection> all = searchRepository.debugFindAllOrderByDistance(userId, embeddingString);
+		
+		log.info("[SEARCH-DEBUG] query=\"{}\" threshold={} 전체 {}건 (가까운 순)",
+				queryText, SIMILARITY_THRESHOLD, all.size());
+		
+		int rank = 1;
+		for (DiaryDistanceDebugProjection p : all) {
+			boolean pass = p.getDistance() < SIMILARITY_THRESHOLD;
+			log.info("[SEARCH-DEBUG] {}위 title=\"{}\" distance={} {}",
+					rank++, p.getTitle(), p.getDistance(), pass ? "PASS" : "cut");
+		}
+	}
 	private SearchResultResponse toSearchResultResponse(
 			SearchResultProjection projection
 	) {

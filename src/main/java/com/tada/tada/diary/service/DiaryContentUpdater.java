@@ -45,12 +45,15 @@ class DiaryContentUpdater {
 		}
 
 		String oldContent = diary.getContent();
+		boolean contentActuallyChanged = !oldContent.equals(form.getContent());
 		diary.update(form.getTitle(), form.getWeather(), form.getContent());
 
 		if (extractionResult != null) {
 			eventPublisher.publishEvent(
 					new MentionExtractedEvent(diaryId, userId, extractionResult)
 			);
+		}
+		if (contentActuallyChanged) {
 			eventPublisher.publishEvent(
 					new DiaryUpdatedEvent(diaryId, userId, oldContent, form.getContent())
 			);

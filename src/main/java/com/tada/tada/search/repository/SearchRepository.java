@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tada.tada.search.dto.DiaryDistanceDebugProjection;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -127,4 +129,27 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	
 	@Query(value = "SELECT d.id FROM diaries d WHERE d.embedding IS NULL", nativeQuery = true)
 	List<UUID> findDiaryIdsWithoutEmbedding();
+	
+	/*
+	   [디버그 전용] threshold 필터링 없이, 특정 쿼리 임베딩과 사용자의 전체 일기 사이의
+	   코사인 거리를 가까운 순으로 전체 조회
+	   - "특정 검색어가 왜 이 일기를 못 찾았는지/엉뚱한 일기를 찾았는지" 진단용
+	   - 진단 끝나면 이 메서드는 삭제할 것 (운영 코드 아님)
+
+	   @param userId 사용자 ID
+	   @param embedding 쿼리 임베딩 벡터
+	   @return 거리순(가까운 순) 정렬된 전체 일기의 title/distance
+	 */
+	@Query(value = """
+	           SELECT d.title AS title,
+	                 (d.embedding <=> CAST(:embedding AS vector)) AS distance
+	           FROM diaries d
+	           WHERE d.user_id = :userId AND d.status = 'ACTIVE' AND d.embedding IS NOT NULL
+	           ORDER BY distance ASC
+	        """,
+			nativeQuery = true)
+	List<DiaryDistanceDebugProjection> debugFindAllOrderByDistance(
+			@Param("userId") UUID userId,
+			@Param("embedding") String embedding
+	);
 }
