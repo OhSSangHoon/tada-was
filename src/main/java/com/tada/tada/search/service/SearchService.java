@@ -6,7 +6,6 @@ import com.tada.tada.search.dto.SearchResultResponse;
 import com.tada.tada.search.dto.SearchSortOption;
 import com.tada.tada.search.repository.SearchRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,7 +27,6 @@ import java.util.UUID;
       단, Voyage 429(rate limit)는 짧게 대기 후 1회 재시도 (embedWithRetry)
  */
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
