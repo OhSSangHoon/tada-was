@@ -38,7 +38,7 @@ public class SearchService {
 	private final VoyageAIEmbeddingService voyageAIEmbeddingService;
 	
 	// 코사인 거리(embedding <-> embedding) 임계값 - 이보다 작아야 "관련 있는" 일기로 간주
-	private static final double SIMILARITY_THRESHOLD = 0.9;
+	private static final double SIMILARITY_THRESHOLD = 0.7;
 	
 	// Voyage AI 429(rate limit) 시 재시도 관련 설정
 	private static final int SEARCH_EMBED_MAX_RETRIES = 2;
@@ -58,7 +58,8 @@ public class SearchService {
 	   @param userId 검색을 요청한 로그인 사용자 ID
 	   @param queryText 사용자가 입력한 자연어 검색어
 	   @param pageable 페이지 정보
-	   @return 유사도순으로 정렬된 본인 일기 Page 객체
+	   @param sort 정렬 기준 (LATEST/OLDEST: 작성일순, RELEVANCE: 유사도순)
+	   @return sort 기준으로 정렬된 본인 일기 Page 객체
 	 */
 	public Page<SearchResultResponse> search(UUID userId, String queryText, Pageable pageable, SearchSortOption sort) {
 		
@@ -77,6 +78,8 @@ public class SearchService {
 			case LATEST -> searchRepository.findSimilarDiariesOrderByEntryDateDesc(
 					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
 			case OLDEST -> searchRepository.findSimilarDiariesOrderByEntryDateAsc(
+					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
+			case RELEVANCE -> searchRepository.findSimilarDiariesOrderByRelevance(
 					userId, embeddingString, SIMILARITY_THRESHOLD, pageable);
 		};
 		

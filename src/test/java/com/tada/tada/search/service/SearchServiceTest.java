@@ -204,6 +204,23 @@ class SearchServiceTest {
 		verify(searchRepository).findSimilarDiariesOrderByEntryDateAsc(eq(userId), anyString(), anyDouble(), eq(pageable));
 	}
 	
+	@Test
+	void 정렬옵션이_RELEVANCE이면_유사도순_리포지토리_메서드를_호출한다() {
+		UUID userId = UUID.randomUUID();
+		Pageable pageable = Pageable.ofSize(3);
+		
+		when(voyageAIEmbeddingService.embed(anyString()))
+				.thenReturn(new float[]{0.1f, 0.2f, 0.3f});
+		
+		Page<SearchResultProjection> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+		when(searchRepository.findSimilarDiariesOrderByRelevance(eq(userId), anyString(), anyDouble(), eq(pageable)))
+				.thenReturn(emptyPage);
+		
+		searchService.search(userId, "기분 좋은 날", pageable, SearchSortOption.RELEVANCE);
+		
+		verify(searchRepository).findSimilarDiariesOrderByRelevance(eq(userId), anyString(), anyDouble(), eq(pageable));
+	}
+	
 	private SearchResultProjection createProjection(
 			UUID id,
 			LocalDate entryDate,
