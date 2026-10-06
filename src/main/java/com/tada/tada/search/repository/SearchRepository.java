@@ -159,4 +159,5 @@ public interface SearchRepository extends JpaRepository<Diary, UUID> {
 	
 	@Query(value = "SELECT d.id FROM diaries d WHERE d.embedding IS NULL", nativeQuery = true)
 	List<UUID> findDiaryIdsWithoutEmbedding();
+	
 }
